@@ -1,0 +1,12 @@
+# wrangler.toml
+name = '3mfviewer'
+main = "src/worker.js"
+compatibility_date = "2025-08-23"
+assets = { directory = "./dist" }
+
+[build]
+command = "npm run build"
+
+[observability]
+enabled = true
+head_sampling_rate = 1 # optional. default = 1.

@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@keyframes gradient-orbit {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.gradient-halo {
+  background-image: linear-gradient(120deg, #38bdf8, #a855f7, #6366f1, #38bdf8);
+  background-size: 250% 250%;
+  animation: gradient-orbit 5s ease-in-out infinite;
+}
+
+@keyframes floaty-bubble {
+  0%, 100% {
+    transform: translate3d(0, -12px, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, 12px, 0) scale(1.05);
+  }
+}
+
+@keyframes floaty-chip {
+  0%, 100% {
+    transform: translate3d(0, -4px, 0);
+  }
+  50% {
+    transform: translate3d(0, 4px, 0);
+  }
+}
+
+.floating-bubble {
+  animation: floaty-bubble 18s ease-in-out infinite;
+}
+
+.floating-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(168, 85, 247, 0.12));
+  padding: 0.4rem 1rem;
+  font-size: 0.68rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: rgba(37, 99, 235, 0.85);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 18px -12px rgba(37, 99, 235, 0.55);
+}
+
+.floating-chip--primary {
+  border-color: rgba(14, 116, 144, 0.35);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.16), rgba(59, 130, 246, 0.14));
+  color: rgba(14, 116, 144, 0.95);
+  box-shadow: 0 12px 22px -16px rgba(56, 189, 248, 0.6);
+}

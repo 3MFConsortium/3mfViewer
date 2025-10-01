@@ -1,0 +1,62 @@
+{
+  "0.19.0": [
+    "Cleaned up unused colour legend and D-pad code while tightening help messaging and keyboard controls",
+    "Moved viewer help toggle into floating buttons (desktop + touch) and aligned the 3MF logo with home navigation",
+    "Removed redundant home icon from navbar"
+  ],
+  "0.18.1": [
+    "Homepage overlay stays clean while the 3MF logo now mirrors the home button behaviour, making it easy to reset the viewer",
+    "Removed the temporary home-overlay resume widget to keep navigation predictable on wide layouts"
+  ],
+  "0.18.0": [
+    "Diagnostics panel now groups identical warnings/errors with occurrence counts instead of relying on exported PDFs",
+    "Removed PDF generation flow and heavy client dependencies to avoid WebGL renderer thrashing on large issue sets",
+    "Viewer shows a modal warning whenever import errors are present so users know geometry or metadata may be incomplete"
+  ],
+  "0.17.1": [
+    "Fix colour group resolution so multi-colour 3MF files keep their assigned palette instead of defaulting to grey",
+    "Material lookup no longer overwrites property ID entries with index fallbacks, preventing colour loss in downstream stats"
+  ],
+  "0.17.0": [
+    "lib3mf ingestion now reports UUIDs, unique IDs, material and colour groups directly in the scene tree",
+    "Scene tree inspector gains a hide/show toggle for per-node metadata to keep the panel compact",
+    "Specification support status, including version, surfaces across summary views and diagnostics",
+    "Bootstrap loading/error cards redesigned for a cleaner mobile-friendly presentation",
+    "Viewer HUD, modals, and scene tree share a unified translucent white treatment with softer badges",
+    "Scene tree inspector shows selected node details in a bordered table and centres the quick actions",
+    "Validator button, FPS badge placement, and home controls refreshed for clearer labelling"
+  ],
+  "0.16.0": [
+    "Viewer layout split into modular Home, HUD, Scene, and Overlays components for easier upkeep",
+    "Home/back-to-start button now works across mobile and desktop with a touch-friendly icon",
+    "Fixed overlay pan/zoom handlers so the landing page loads correctly in production bundles"
+  ],
+  "0.15.0": [
+    "Homepage trims copy and groups core-spec roadmap items for quicker scanning",
+    "Workflows section nests converter and validator previews inside a single card",
+    "Sample picker now loads bundled cube and helix 3MF files from /data"
+  ],
+  "0.14.0": [
+    "Worker now serves threemf.png for favicon requests and handles missing asset bindings gracefully",
+    "3MF loader cleans up skipped objects to avoid leaked C++ instances",
+    "Desktop HUD tweaks: scene tree inspector, mesh visibility, and FPS readout"
+  ],
+  "0.13.0": [
+    "Scene tree supports selection, per-mesh visibility toggles, and detail pane",
+    "Unique palette colours assigned to imported meshes for easier identification",
+    "Lightweight FPS readout replaces Drei Stats overlay in desktop HUD"
+  ],
+  "0.12.0": [
+    "Responsive mobile/tablet layout with slide-out scene tree, adaptive dock, and gesture shortcuts",
+    "Touch-friendly toolbar toggle with animated halo and inline close control on large screens",
+    "Unified HUD icons and contextual help card to surface viewer tips"
+  ],
+  "0.11.0": [
+    "Version badge and consortium link available in the viewer HUD",
+    "Tabbed preferences with UI toggles and adaptive ground/grid sizing",
+    "Preload gate ensures lib3mf runtime finishes downloading before showing drag & drop"
+  ],
+  "0.10.0": [
+    "Initial viewer bootstrap to wait for lib3mf assets before use"
+  ]
+}
