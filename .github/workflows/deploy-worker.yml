@@ -2,12 +2,14 @@ name: Deploy 3MF Viewer
 
 on:
   push:
-    branches: [ main ]
-  workflow_dispatch:
+    tags:
+      - "v*"        # triggers only for tags like v1.0.0, v0.19.0 etc.
+  workflow_dispatch: # optional manual trigger
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -18,7 +20,7 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Install deps
+      - name: Install dependencies
         run: npm ci
 
       - name: Build (Vite)

@@ -3,6 +3,10 @@ name = '3mfviewer'
 main = "src/worker.js"
 compatibility_date = "2025-08-23"
 assets = { directory = "./dist" }
+routes = [
+  { pattern = "3mfviewer.com/*", zone_name = "3mfviewer.com" },
+  { pattern = "www.3mfviewer.com/*", zone_name = "3mfviewer.com" }
+]
 
 [build]
 command = "npm run build"
