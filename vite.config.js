@@ -9,6 +9,9 @@ export default defineConfig({
   build: {
     chunkSizeWarningLimit: 2000,
   },
+  worker: {
+    format: 'es',
+  },
   logLevel: 'info',
   define: {
     __APP_VERSION__: JSON.stringify(pkg.version),
