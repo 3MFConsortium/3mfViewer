@@ -1,20 +1,23 @@
 import React from "react";
+import { useViewerStore } from "../../stores/viewerStore.js";
 import { IconMenu, IconQuestion, IconPrefs } from "../ui/Icons.jsx";
 
 export function ViewerHud({
   showScene,
-  showSceneTree,
-  mobileNavOpen,
-  onOpenNav,
-  showStats,
   fps,
-  helpAvailable,
   helpButtonRef,
-  helpCardOpen,
-  onToggleHelp,
   onBackToStart,
-  onOpenPrefs,
 }) {
+  const showSceneTree = useViewerStore((state) => state.prefs.uiSceneTree);
+  const showStats = useViewerStore((state) => state.prefs.showStats);
+  const mobileNavOpen = useViewerStore((state) => state.ui.mobileNavOpen);
+  const helpCardOpen = useViewerStore((state) => state.ui.helpCardOpen);
+  const toggleMobileNav = useViewerStore((state) => state.toggleMobileNav);
+  const toggleHelpCard = useViewerStore((state) => state.toggleHelpCard);
+  const setOpenPrefs = useViewerStore((state) => state.setOpenPrefs);
+
+  const helpAvailable = true; // or come from somewhere else if needed
+
   const fpsLabel = Number.isFinite(fps) && fps > 0 ? Math.round(fps) : "--";
 
   return (
@@ -28,7 +31,7 @@ export function ViewerHud({
                 aria-label="Open scene navigator"
                 aria-expanded={mobileNavOpen}
                 className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white shadow transition hover:bg-slate-800 lg:hidden"
-                onClick={onOpenNav}
+                onClick={toggleMobileNav}
                 disabled={!showSceneTree}
               >
                 <IconMenu />
@@ -82,7 +85,7 @@ export function ViewerHud({
               type="button"
               aria-label="Open preferences"
               className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white shadow transition hover:bg-slate-800"
-              onClick={onOpenPrefs}
+              onClick={() => setOpenPrefs(true)}
             >
               <IconPrefs />
             </button>
@@ -97,10 +100,9 @@ export function ViewerHud({
             type="button"
             aria-label="Show viewer tips"
             aria-expanded={helpCardOpen}
-            onClick={onToggleHelp}
-            className={`pointer-events-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-white shadow-xl ring-1 ring-white/10 transition hover:bg-slate-800 ${
-              helpCardOpen ? "" : "animate-pulse"
-            }`}
+            onClick={toggleHelpCard}
+            className={`pointer-events-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-white shadow-xl ring-1 ring-white/10 transition hover:bg-slate-800 ${helpCardOpen ? "" : "animate-pulse"
+              }`}
           >
             <IconQuestion />
           </button>

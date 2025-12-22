@@ -1,4 +1,9 @@
 {
+  "0.20.0": [
+    "Revived project with dependency updates (React 19, Vite 7, Three.js 0.182, Tailwind 4)",
+    "Introduced Vitest for unit testing",
+    "Improved developer experience with better logging and lightningcss integration"
+  ],
   "0.19.0": [
     "Cleaned up unused colour legend and D-pad code while tightening help messaging and keyboard controls",
     "Moved viewer help toggle into floating buttons (desktop + touch) and aligned the 3MF logo with home navigation",

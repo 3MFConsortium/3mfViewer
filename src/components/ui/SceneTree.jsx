@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+
+import { useViewerStore } from "../../stores/viewerStore.js";
 import {
   IconCaret,
   IconCube,
@@ -66,6 +68,23 @@ const formatMatrix4x3 = (matrix) => {
         .join("  ")
     )
     .join("\n");
+};
+
+const areSpecResultsEqual = (left, right) => {
+  if (left === right) return true;
+  if (!Array.isArray(left) || !Array.isArray(right)) return false;
+  if (left.length !== right.length) return false;
+  return left.every((item, index) => {
+    const other = right[index];
+    if (!item || !other) return item === other;
+    return (
+      item.url === other.url &&
+      item.supported === other.supported &&
+      item.major === other.major &&
+      item.minor === other.minor &&
+      item.micro === other.micro
+    );
+  });
 };
 
 function TreeNode({
@@ -173,15 +192,29 @@ export function SceneTree({
   onToggleMeshVisibility,
   hiddenMeshIds = [],
   onUpdateSpecifications,
-  specificationResults = null,
 }) {
   const inputRef = useRef(null);
-  const [modelInfoOpen, setModelInfoOpen] = useState(false);
-  const [modelInfoTab, setModelInfoTab] = useState("summary");
-  const [infoCollapsed, setInfoCollapsed] = useState(false);
-  const [specModalOpen, setSpecModalOpen] = useState(false);
-  const [specInputValue, setSpecInputValue] = useState(() => "");
-  const [materialModalOpen, setMaterialModalOpen] = useState(false);
+  const specificationResults = useViewerStore((state) => state.specs.specResults);
+  const sceneTreeState = useViewerStore((state) =>
+    variant === "drawer" ? state.sceneTree.drawer : state.sceneTree.panel
+  );
+  const setSceneTreeState = useViewerStore((state) =>
+    variant === "drawer" ? state.setSceneTreeDrawer : state.setSceneTreePanel
+  );
+  const modelInfoOpen = sceneTreeState.modelInfoOpen;
+  const modelInfoTab = sceneTreeState.modelInfoTab;
+  const infoCollapsed = sceneTreeState.infoCollapsed;
+  const specModalOpen = sceneTreeState.specModalOpen;
+  const specInputValue = sceneTreeState.specInputValue;
+  const materialModalOpen = sceneTreeState.materialModalOpen;
+  const localSpecResults = sceneTreeState.localSpecResults;
+  const setModelInfoOpen = (open) => setSceneTreeState({ modelInfoOpen: open });
+  const setModelInfoTab = (tab) => setSceneTreeState({ modelInfoTab: tab });
+  const setInfoCollapsed = (collapsed) => setSceneTreeState({ infoCollapsed: collapsed });
+  const setSpecModalOpen = (open) => setSceneTreeState({ specModalOpen: open });
+  const setSpecInputValue = (value) => setSceneTreeState({ specInputValue: value });
+  const setMaterialModalOpen = (open) => setSceneTreeState({ materialModalOpen: open });
+  const setLocalSpecResults = (value) => setSceneTreeState({ localSpecResults: value });
 
   const handleFileClick = () => inputRef.current?.click();
   const handleFileChange = (event) => {
@@ -217,7 +250,6 @@ export function SceneTree({
     ? [metadata.specification]
     : [];
   const specifications = specificationResults?.length ? specificationResults : derivedMetadataSpecs;
-  const [localSpecResults, setLocalSpecResults] = useState(specifications);
   const baseMaterialGroups = useMemo(() => {
     if (!Array.isArray(metadata?.baseMaterialGroups)) return [];
     return metadata.baseMaterialGroups;
@@ -641,18 +673,20 @@ export function SceneTree({
 
   useEffect(() => {
     if (loadStatus !== "ready") {
-      setModelInfoOpen(false);
-      setModelInfoTab("summary");
-      setSpecModalOpen(false);
-      setMaterialModalOpen(false);
+      setSceneTreeState({
+        modelInfoOpen: false,
+        modelInfoTab: "summary",
+        specModalOpen: false,
+        materialModalOpen: false,
+      });
     }
-  }, [loadStatus]);
+  }, [loadStatus, setSceneTreeState]);
 
   useEffect(() => {
     if (specificationResults?.length) {
       const text = specificationResults.map((s) => s.url).filter(Boolean).join("\n");
       if (text.length) {
-        setSpecInputValue(text);
+        setSceneTreeState({ specInputValue: text });
         return;
       }
     }
@@ -661,12 +695,12 @@ export function SceneTree({
     metadata?.specifications,
     metadata?.primarySpecification?.url,
     metadata?.specification?.url,
+    setSceneTreeState,
   ]);
 
   useEffect(() => {
-    setInfoCollapsed(false);
-    setMaterialModalOpen(false);
-  }, [selectedInfo?.id]);
+    setSceneTreeState({ infoCollapsed: false, materialModalOpen: false });
+  }, [selectedInfo?.id, setSceneTreeState]);
 
   const sharedHeader = (
     <div
@@ -821,8 +855,9 @@ export function SceneTree({
   ) : null;
 
   useEffect(() => {
-    setLocalSpecResults(specifications);
-  }, [specifications]);
+    if (areSpecResultsEqual(specifications, localSpecResults)) return;
+    setSceneTreeState({ localSpecResults: specifications });
+  }, [specifications, localSpecResults, setSceneTreeState]);
 
   const handleSpecSave = async () => {
     if (!isReady) return;

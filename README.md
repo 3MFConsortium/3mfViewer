@@ -12,6 +12,8 @@ npm run dev
 - `npm run dev` – start Vite dev server (default: <http://localhost:5173>)
 - `npm run build` – production bundle (Vite)
 - `npm run preview` – serve the production bundle locally
+- `npm run test` – run unit tests (Vitest)
+- `npm run test:ui` – run unit tests with UI
 
 ## Project Structure
 

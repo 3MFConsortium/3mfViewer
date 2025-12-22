@@ -3,12 +3,13 @@ import * as THREE from "three";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 
+import { useViewerStore } from "../../stores/viewerStore.js";
+
 import { SceneContent } from "../scene/SceneContent.jsx";
 import { SceneTree } from "../ui/SceneTree.jsx";
 
 export function ViewerScene({
   showScene,
-  prefs,
   initialCamPos,
   initialTarget,
   controlsRef,
@@ -16,27 +17,29 @@ export function ViewerScene({
   rendererRef,
   setCanvasElement,
   contentRef,
-  sceneObject,
-  hiddenMeshIds,
   groundSize,
   groundY,
   gridDivisions,
-  showSceneTree,
   treeItems,
   onSelectFile,
-  loadStatus,
-  loadedName,
-  loadError,
   sceneMetadata,
-  onSelectNode,
-  selectedNodeId,
-  selectedNodeInfo,
-  onToggleMeshVisibility,
-  mobileNavOpen,
-  onCloseNav,
   onUpdateSpecifications,
-  specificationResults,
 }) {
+  const prefs = useViewerStore((state) => state.prefs);
+  const sceneObject = useViewerStore((state) => state.viewer.sceneObject);
+  const loadStatus = useViewerStore((state) => state.viewer.loadStatus);
+  const loadError = useViewerStore((state) => state.viewer.loadError);
+  const loadedName = useViewerStore((state) => state.viewer.loadedName);
+  const hiddenMeshIds = useViewerStore((state) => state.selection.hiddenMeshIds);
+  const selectedNodeId = useViewerStore((state) => state.selection.selectedNodeId);
+  const selectedNodeInfo = useViewerStore((state) => state.selection.selectedNodeInfo);
+  const mobileNavOpen = useViewerStore((state) => state.ui.mobileNavOpen);
+  const toggleMeshVisibility = useViewerStore((state) => state.toggleMeshVisibility);
+  const setSelectedNode = useViewerStore((state) => state.setSelectedNode);
+  const setMobileNavOpen = useViewerStore((state) => state.setMobileNavOpen);
+
+  const showSceneTree = showScene && prefs.uiSceneTree;
+
   return (
     <>
       {showScene && (
@@ -103,12 +106,11 @@ export function ViewerScene({
             fileName={loadedName}
             errorMessage={loadError}
             metadata={sceneMetadata}
-            specificationResults={specificationResults}
             className="hidden lg:block"
-            onSelectNode={onSelectNode}
+            onSelectNode={setSelectedNode}
             selectedNodeId={selectedNodeId}
             selectedInfo={selectedNodeInfo}
-            onToggleMeshVisibility={onToggleMeshVisibility}
+            onToggleMeshVisibility={toggleMeshVisibility}
             hiddenMeshIds={hiddenMeshIds}
             onUpdateSpecifications={onUpdateSpecifications}
           />
@@ -121,13 +123,12 @@ export function ViewerScene({
             metadata={sceneMetadata}
             variant="drawer"
             open={mobileNavOpen}
-            onClose={onCloseNav}
-            specificationResults={specificationResults}
+            onClose={() => setMobileNavOpen(false)}
             className="lg:hidden"
-            onSelectNode={onSelectNode}
+            onSelectNode={setSelectedNode}
             selectedNodeId={selectedNodeId}
             selectedInfo={selectedNodeInfo}
-            onToggleMeshVisibility={onToggleMeshVisibility}
+            onToggleMeshVisibility={toggleMeshVisibility}
             hiddenMeshIds={hiddenMeshIds}
             onUpdateSpecifications={onUpdateSpecifications}
           />

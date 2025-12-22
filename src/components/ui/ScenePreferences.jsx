@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import React from "react";
+
+import { useViewerStore } from "../../stores/viewerStore.js";
 
 const tabs = [
   { id: "appearance", label: "Appearance" },
@@ -8,7 +10,8 @@ const tabs = [
 ];
 
 export function ScenePreferences({ prefs, onChange }) {
-  const [activeTab, setActiveTab] = useState(tabs[0].id);
+  const activeTab = useViewerStore((state) => state.ui.scenePrefsActiveTab);
+  const setActiveTab = useViewerStore((state) => state.setScenePrefsActiveTab);
   const set = (key, value) => onChange({ ...prefs, [key]: value });
 
   const renderTabContent = () => {

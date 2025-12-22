@@ -85,19 +85,18 @@ export class Lib3mfEngine {
 
         let result = null;
         try {
-            if (typeof subject.GetUUID !== "function") {
-                return { uuid: null, hasUUID: false };
-            }
-            result = subject.GetUUID();
-            if (typeof result === "string") {
-                const uuid = result || null;
-                return { uuid, hasUUID: !!uuid };
-            }
-            if (result && typeof result === "object") {
-                const uuid = coerceString(result) || null;
-                const hasField = result.HasUUID ?? result.bHasUUID ?? result.hasUUID ?? result.HasUniqueID;
-                const hasUUID = typeof hasField === "boolean" ? hasField : !!uuid;
-                return { uuid, hasUUID };
+            if (typeof subject.GetUUID === "function") {
+                result = subject.GetUUID();
+                if (typeof result === "string") {
+                    const uuid = result || null;
+                    return { uuid, hasUUID: !!uuid };
+                }
+                if (result && typeof result === "object") {
+                    const uuid = coerceString(result) || null;
+                    const hasField = result.HasUUID ?? result.bHasUUID ?? result.hasUUID ?? result.HasUniqueID;
+                    const hasUUID = typeof hasField === "boolean" ? hasField : !!uuid;
+                    return { uuid, hasUUID };
+                }
             }
         } catch (err) {
             logCatch("getUUIDSafe.GetUUID threw", err);
@@ -315,8 +314,8 @@ export class Lib3mfEngine {
                 return 0;
             });
 
-        safeDelete(p);
-        return { resourceId, propertyIds };
+            safeDelete(p);
+            return { resourceId, propertyIds };
         } catch (err) {
             logCatch("getTrianglePropertiesSafe failed", err);
             return null;
@@ -326,24 +325,9 @@ export class Lib3mfEngine {
     readBaseMaterialEntries(group) {
         const count = group.GetCount?.() ?? 0;
         const entries = [];
-        let explicitIds = null;
-        if (typeof group.GetAllPropertyIDs === "function") {
-            try {
-                const res = group.GetAllPropertyIDs();
-                if (Array.isArray(res) || ArrayBuffer.isView(res)) {
-                    explicitIds = Array.from(res);
-                }
-            } catch (err) {
-                logCatch("readBaseMaterialEntries.GetAllPropertyIDs failed", err);
-                explicitIds = null;
-            }
-        }
 
         for (let index = 0; index < count; index += 1) {
             const candidates = [];
-            if (explicitIds && explicitIds[index] != null) {
-                candidates.push(explicitIds[index]);
-            }
             candidates.push(index + 1, index);
 
             let chosenId = null;
@@ -416,29 +400,11 @@ export class Lib3mfEngine {
         const count = group.GetCount?.() ?? 0;
         const entries = [];
 
-        let explicitIds = null;
-        if (typeof group.GetAllPropertyIDs === "function") {
-            try {
-                const res = group.GetAllPropertyIDs();
-                if (Array.isArray(res) || ArrayBuffer.isView(res)) {
-                    explicitIds = Array.from(res);
-                }
-            } catch (err) {
-                logCatch("readColorGroupEntries.GetAllPropertyIDs failed", err);
-                explicitIds = null;
-            }
-        }
-
         for (let index = 0; index < count; index += 1) {
             const candidates = [];
-            if (explicitIds && explicitIds[index] != null) {
-                candidates.push(explicitIds[index]);
-            }
             candidates.push(index + 1, index);
 
-            const actualId = explicitIds && explicitIds[index] != null
-                ? normalizePropertyId(explicitIds[index]) ?? explicitIds[index]
-                : normalizePropertyId(index + 1) ?? index + 1;
+            const actualId = normalizePropertyId(index + 1) ?? index + 1;
 
             let rgba = null;
             let propertyId = actualId;
@@ -471,6 +437,159 @@ export class Lib3mfEngine {
             });
         }
 
+        return entries;
+    }
+
+    readAttachmentBuffer(attachment) {
+        if (!attachment) return null;
+        try {
+            const res = attachment.WriteToBuffer();
+            const buffer = res?.Buffer ?? res;
+            if (ArrayBuffer.isView(buffer)) return buffer;
+            if (Array.isArray(buffer)) return Uint8Array.from(buffer);
+            return null;
+        } catch (err) {
+            try {
+                const path = attachment.GetPath?.() || "attachment.bin";
+                const safeName = String(path).replace(/[^\w.\-]+/g, "_");
+                const fsPath = `/tmp/${Date.now()}_${safeName}`;
+                attachment.WriteToFile?.(fsPath);
+                const data = this.lib?.FS?.readFile?.(fsPath);
+                this.safeFsUnlink(fsPath);
+                if (data) return data;
+            } catch (fallbackErr) {
+                logCatch("readAttachmentBuffer fallback WriteToFile failed", fallbackErr);
+            }
+            logCatch("readAttachmentBuffer failed", err);
+            return null;
+        }
+    }
+
+    readTexture2DEntries(model) {
+        const entries = [];
+        const iterator = model.GetTexture2Ds?.();
+        if (!iterator) return entries;
+        while (iterator.MoveNext?.()) {
+            const texture = iterator.GetCurrentTexture2D?.();
+            if (!texture) continue;
+            try {
+                const textureId = texture.GetResourceID?.();
+                const uniqueResourceId = texture.GetUniqueResourceID?.();
+                const contentType = texture.GetContentType?.();
+                const tileStyles = texture.GetTileStyleUV?.();
+                const filter = texture.GetFilter?.();
+                let attachmentPath = null;
+                let buffer = null;
+
+                const attachment = texture.GetAttachment?.();
+                if (attachment) {
+                    try {
+                        attachmentPath = attachment.GetPath?.() ?? null;
+                        buffer = this.readAttachmentBuffer(attachment);
+                    } finally {
+                        safeDelete(attachment);
+                    }
+                }
+
+                entries.push({
+                    textureId,
+                    uniqueResourceId,
+                    contentType,
+                    tileStyleU: tileStyles?.TileStyleU ?? null,
+                    tileStyleV: tileStyles?.TileStyleV ?? null,
+                    filter,
+                    attachmentPath,
+                    buffer,
+                });
+            } catch (err) {
+                logCatch("readTexture2DEntries failed", err);
+            } finally {
+                safeDelete(texture);
+            }
+        }
+        safeDelete(iterator);
+        return entries;
+    }
+
+    readTexture2DGroupEntries(model) {
+        const entries = [];
+        const iterator = model.GetTexture2DGroups?.();
+        if (!iterator) return entries;
+        while (iterator.MoveNext?.()) {
+            const group = iterator.GetCurrentTexture2DGroup?.();
+            if (!group) continue;
+            try {
+                const groupId = group.GetResourceID?.();
+                const uniqueResourceId = group.GetUniqueResourceID?.();
+                const count = group.GetCount?.() ?? 0;
+                let textureId = null;
+
+                const texture = group.GetTexture2D?.();
+                if (texture) {
+                    try {
+                        textureId = texture.GetResourceID?.();
+                    } finally {
+                        safeDelete(texture);
+                    }
+                }
+
+                const coords = [];
+                const ids = [];
+                for (let index = 0; index < count; index += 1) {
+                    const candidates = [];
+                    candidates.push(index + 1, index);
+
+                    let chosenId = null;
+                    let coord = null;
+
+                    for (const candidate of candidates) {
+                        if (candidate == null) continue;
+                        try {
+                            const texCoord = group.GetTex2Coord?.(candidate);
+                            const u =
+                                typeof texCoord?.get_U === "function"
+                                    ? texCoord.get_U()
+                                    : texCoord?.U ?? texCoord?.u ?? null;
+                            const v =
+                                typeof texCoord?.get_V === "function"
+                                    ? texCoord.get_V()
+                                    : texCoord?.V ?? texCoord?.v ?? null;
+                            if (Number.isFinite(u) && Number.isFinite(v)) {
+                                chosenId = normalizePropertyId(candidate) ?? candidate;
+                                coord = { u, v };
+                                break;
+                            }
+                        } catch (err) {
+                            logCatch(`readTexture2DGroupEntries.GetTex2Coord(${candidate}) failed`, err);
+                        }
+                    }
+
+                    if (chosenId == null && coord == null) {
+                        continue;
+                    }
+
+                    ids.push(chosenId);
+                    coords.push({
+                        propertyId: chosenId,
+                        u: coord?.u ?? 0,
+                        v: coord?.v ?? 0,
+                    });
+                }
+
+                entries.push({
+                    groupId,
+                    uniqueResourceId,
+                    textureId,
+                    propertyIds: ids,
+                    coords,
+                });
+            } catch (err) {
+                logCatch("readTexture2DGroupEntries failed", err);
+            } finally {
+                safeDelete(group);
+            }
+        }
+        safeDelete(iterator);
         return entries;
     }
 
@@ -1065,6 +1184,10 @@ export class Lib3mfEngine {
                 safeDelete(colorGroupIterator);
             }
 
+            const texture2Ds = this.readTexture2DEntries(model);
+            const texture2DGroups = this.readTexture2DGroupEntries(model);
+            const hasTextures = texture2DGroups.length > 0 && texture2Ds.length > 0;
+
             const lookupMaps = this.buildMaterialLookupMaps(baseMaterialGroups, colorGroups);
             const meshResourcesArray = [];
 
@@ -1073,7 +1196,9 @@ export class Lib3mfEngine {
                 resource.vertexColors = colorData.vertexColors;
                 resource.materialColorStats = colorData.stats;
                 resource.usesVertexColors = colorData.stats.trianglesWithColor > 0;
-                delete resource.triangleProperties;
+                if (!hasTextures) {
+                    delete resource.triangleProperties;
+                }
                 meshResourcesArray.push(resource);
             });
 
@@ -1222,6 +1347,8 @@ export class Lib3mfEngine {
                 diagnostics,
                 baseMaterialGroups,
                 colorGroups,
+                texture2Ds,
+                texture2DGroups,
                 meshResources: meshResourcesArray,
                 componentResources: componentResourcesArray,
                 items,

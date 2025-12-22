@@ -46,15 +46,25 @@ const getStatusMeta = (status) => STATUS_STYLES[status] || STATUS_STYLES.progres
 
 function ViewerApp() {
   const { load3mf, ensureLib3mf } = useThreeMFLoader();
-  const sceneObject = useViewerStore((state) => state.sceneObject);
-  const sceneData = useViewerStore((state) => state.sceneData);
-  const loadStatus = useViewerStore((state) => state.loadStatus);
-  const loadError = useViewerStore((state) => state.loadError);
-  const loadedName = useViewerStore((state) => state.loadedName);
-  const dragActive = useViewerStore((state) => state.dragActive);
+  const sceneObject = useViewerStore((state) => state.viewer.sceneObject);
+  const sceneData = useViewerStore((state) => state.viewer.sceneData);
+  const loadStatus = useViewerStore((state) => state.viewer.loadStatus);
+  const loadError = useViewerStore((state) => state.viewer.loadError);
+  const loadedName = useViewerStore((state) => state.viewer.loadedName);
+  const dragActive = useViewerStore((state) => state.viewer.dragActive);
   const showScene = !!sceneObject;
   const prefs = useViewerStore((state) => state.prefs);
-  const openPrefs = useViewerStore((state) => state.openPrefs);
+  const openPrefs = useViewerStore((state) => state.ui.openPrefs);
+  const isCoarsePointer = useViewerStore((state) => state.ui.isCoarsePointer);
+  const viewportWidth = useViewerStore((state) => state.ui.viewportWidth);
+  const dockVisited = useViewerStore((state) => state.ui.dockVisited);
+  const openReleaseNotes = useViewerStore((state) => state.ui.openReleaseNotes);
+  const releaseNotesTimelineOpen = useViewerStore((state) => state.ui.releaseNotesTimelineOpen);
+  const sampleLoading = useViewerStore((state) => state.specs.sampleLoading);
+  const sampleError = useViewerStore((state) => state.specs.sampleError);
+  const specUrls = useViewerStore((state) => state.specs.specUrls);
+  const diagnosticsNotice = useViewerStore((state) => state.specs.diagnosticsNotice);
+  const diagnosticsNoticeOpen = useViewerStore((state) => state.specs.diagnosticsNoticeOpen);
   const setDragActive = useViewerStore((state) => state.setDragActive);
   const beginLoad = useViewerStore((state) => state.beginLoad);
   const finishLoad = useViewerStore((state) => state.finishLoad);
@@ -63,28 +73,39 @@ function ViewerApp() {
   const setPrefs = useViewerStore((state) => state.setPrefs);
   const setOpenPrefs = useViewerStore((state) => state.setOpenPrefs);
   const restorePrefs = useViewerStore((state) => state.restorePrefs);
+  const setIsCoarsePointer = useViewerStore((state) => state.setIsCoarsePointer);
+  const setViewportWidth = useViewerStore((state) => state.setViewportWidth);
+  const setDockHintActive = useViewerStore((state) => state.setDockHintActive);
+  const setDockCueActive = useViewerStore((state) => state.setDockCueActive);
+  const setSampleLoading = useViewerStore((state) => state.setSampleLoading);
+  const setSampleError = useViewerStore((state) => state.setSampleError);
+  const setSpecUrls = useViewerStore((state) => state.setSpecUrls);
+  const setSpecResults = useViewerStore((state) => state.setSpecResults);
+  const setDiagnosticsNotice = useViewerStore((state) => state.setDiagnosticsNotice);
+  const setDiagnosticsNoticeOpen = useViewerStore((state) => state.setDiagnosticsNoticeOpen);
+  const setOpenReleaseNotes = useViewerStore((state) => state.setOpenReleaseNotes);
+  const setReleaseNotesTimelineOpen = useViewerStore((state) => state.setReleaseNotesTimelineOpen);
+  const resetTransientUi = useViewerStore((state) => state.resetTransientUi);
+  const resetTransientSpecs = useViewerStore((state) => state.resetTransientSpecs);
   const dragDepthRef = useRef(0);
   const fileInputRef = useRef(null);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [canvasElement, setCanvasElement] = useState(null);
-  const [isCoarsePointer, setIsCoarsePointer] = useState(false);
-  const [mobileDockOpen, setMobileDockOpen] = useState(false);
-  const [helpCardOpen, setHelpCardOpen] = useState(false);
   const helpButtonRef = useRef(null);
   const helpCardRef = useRef(null);
-  const [viewportWidth, setViewportWidth] = useState(() =>
-    typeof window === "undefined" ? 1280 : window.innerWidth
-  );
-  const [tabletDockCollapsed, setTabletDockCollapsed] = useState(false);
-  const [dockHintActive, setDockHintActive] = useState(true);
-  const [dockCueActive, setDockCueActive] = useState(false);
-  const [dockVisited, setDockVisited] = useState(false);
   const fps = useRafFps({ sample: 750 });
-  const hiddenMeshIds = useViewerStore((state) => state.hiddenMeshIds);
+  const hiddenMeshIds = useViewerStore((state) => state.selection.hiddenMeshIds);
   const toggleMeshVisibility = useViewerStore((state) => state.toggleMeshVisibility);
-  const selectedNodeId = useViewerStore((state) => state.selectedNodeId);
-  const selectedNodeInfo = useViewerStore((state) => state.selectedNodeInfo);
+  const selectedNodeId = useViewerStore((state) => state.selection.selectedNodeId);
+  const selectedNodeInfo = useViewerStore((state) => state.selection.selectedNodeInfo);
   const setSelectedNode = useViewerStore((state) => state.setSelectedNode);
+  const mobileDockOpen = useViewerStore((state) => state.ui.mobileDockOpen);
+  const setMobileNavOpen = useViewerStore((state) => state.setMobileNavOpen);
+  const setMobileDockOpen = useViewerStore((state) => state.setMobileDockOpen);
+  const helpCardOpen = useViewerStore((state) => state.ui.helpCardOpen);
+  const setHelpCardOpen = useViewerStore((state) => state.setHelpCardOpen);
+  const toggleHelpCard = useViewerStore((state) => state.toggleHelpCard);
+  const tabletDockCollapsed = useViewerStore((state) => state.ui.tabletDockCollapsed);
+  const setTabletDockCollapsed = useViewerStore((state) => state.setTabletDockCollapsed);
   const handleSelectNode = useCallback(
     (node) => {
       setSelectedNode(node);
@@ -93,25 +114,14 @@ function ViewerApp() {
   );
 
   // ---------- samples & home content ----------
-  const [sampleLoading, setSampleLoading] = useState(null);
-  const [sampleError, setSampleError] = useState(null);
-  const [specUrls, setSpecUrls] = useState([]);
-  const [specResults, setSpecResults] = useState([]);
-  const [diagnosticsNotice, setDiagnosticsNotice] = useState(null);
-  const [diagnosticsNoticeOpen, setDiagnosticsNoticeOpen] = useState(false);
-
-  const clearDiagnosticsNotice = useCallback(() => {
-    setDiagnosticsNotice(null);
-    setDiagnosticsNoticeOpen(false);
-  }, []);
 
   const checkSpecifications = useCallback(
     async (urls) => {
       const normalized = Array.isArray(urls)
         ? urls.map((url) => url.trim()).filter(Boolean)
         : typeof urls === "string"
-        ? [urls.trim()].filter(Boolean)
-        : [];
+          ? [urls.trim()].filter(Boolean)
+          : [];
 
       setSpecUrls(normalized);
 
@@ -172,7 +182,7 @@ function ViewerApp() {
         }
       }
     },
-    [ensureLib3mf]
+    [ensureLib3mf, setSpecResults, setSpecUrls]
   );
 
   const applyLoadedResult = useCallback(
@@ -292,11 +302,11 @@ function ViewerApp() {
   const handleLoadSample = useCallback(
     async (sample) => {
       try {
+        resetTransientUi();
+        resetTransientSpecs();
         setSampleError(null);
         setSampleLoading(sample.name);
         setDragActive(false);
-        setMobileNavOpen(false);
-        clearDiagnosticsNotice();
         const fileLabel = sample.fileName || `${sample.name}.3mf`;
         beginLoad(fileLabel);
 
@@ -334,7 +344,7 @@ function ViewerApp() {
         const message = err?.message || "Unable to load sample.";
         setSampleError(message);
         failLoad(message);
-        clearDiagnosticsNotice();
+        resetTransientSpecs();
       } finally {
         setSampleLoading(null);
       }
@@ -344,10 +354,14 @@ function ViewerApp() {
       failLoad,
       load3mf,
       setDragActive,
-      setMobileNavOpen,
       specUrls,
       applyLoadedResult,
-      clearDiagnosticsNotice,
+      resetTransientSpecs,
+      resetTransientUi,
+      setSampleError,
+      setSampleLoading,
+      setSpecResults,
+      setSpecUrls,
     ]
   );
 
@@ -478,7 +492,8 @@ function ViewerApp() {
     async (file) => {
       if (!file) return;
 
-      clearDiagnosticsNotice();
+      resetTransientUi();
+      resetTransientSpecs();
       beginLoad(file.name);
       setMobileNavOpen(false);
 
@@ -504,7 +519,7 @@ function ViewerApp() {
         console.error("Failed to load model", err);
         const message = err?.message || "Unable to load file.";
         failLoad(message);
-        clearDiagnosticsNotice();
+        resetTransientSpecs();
       }
     },
     [
@@ -514,7 +529,10 @@ function ViewerApp() {
       setMobileNavOpen,
       specUrls,
       applyLoadedResult,
-      clearDiagnosticsNotice,
+      resetTransientSpecs,
+      resetTransientUi,
+      setSpecResults,
+      setSpecUrls,
     ]
   );
 
@@ -531,27 +549,13 @@ function ViewerApp() {
     fileInputRef.current?.click();
   }, []);
 
-  const handleOpenNav = useCallback(() => {
-    setMobileNavOpen(true);
-  }, []);
 
-  const toggleHelpCard = useCallback((event) => {
-    if (event?.currentTarget) {
-      helpButtonRef.current = event.currentTarget;
-    }
-    setHelpCardOpen((open) => !open);
-  }, []);
 
   const handleBackToStart = useCallback(() => {
-    clearDiagnosticsNotice();
+    resetTransientUi();
+    resetTransientSpecs();
     clearScene();
-    setMobileNavOpen(false);
-    setMobileDockOpen(false);
-  }, [clearScene, clearDiagnosticsNotice]);
-
-  const handleOpenPrefs = useCallback(() => {
-    setOpenPrefs(true);
-  }, [setOpenPrefs]);
+  }, [clearScene, resetTransientSpecs, resetTransientUi]);
 
   const handleToggleGrid = useCallback(() => {
     setPrefs((p) => ({ ...p, grid: !p.grid }));
@@ -583,28 +587,6 @@ function ViewerApp() {
     [setPrefs]
   );
 
-  const handleCollapseTabletDock = useCallback(() => {
-    setTabletDockCollapsed(true);
-    setDockVisited(true);
-  }, []);
-
-  const handleExpandTabletDock = useCallback(() => {
-    setTabletDockCollapsed(false);
-    setDockVisited(true);
-    setDockHintActive(false);
-    setDockCueActive(true);
-  }, []);
-
-  const handleToggleMobileDock = useCallback(() => {
-    setDockVisited(true);
-    setDockHintActive(false);
-    setDockCueActive(true);
-    setMobileDockOpen((open) => !open);
-  }, []);
-
-  const handleCloseMobileDock = useCallback(() => {
-    setMobileDockOpen(false);
-  }, []);
 
   useEffect(() => {
     const prevent = (event) => {
@@ -671,14 +653,15 @@ function ViewerApp() {
       if (mq.removeEventListener) mq.removeEventListener("change", update);
       else mq.removeListener(update);
     };
-  }, []);
+  }, [setIsCoarsePointer]);
 
   useEffect(() => {
     if (typeof window === "undefined") return undefined;
     const handleResize = () => setViewportWidth(window.innerWidth);
+    handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
-  }, []);
+  }, [setViewportWidth]);
 
   // for reset view
   const initialCamPos = useRef(new THREE.Vector3(6, 5, 8));
@@ -859,38 +842,58 @@ function ViewerApp() {
 
   const helpItems = isCoarsePointer
     ? [
-        "Drag with one finger to orbit",
-        "Pinch with two fingers to zoom",
-        "Two-finger drag to pan",
-        "Double tap to fit the model",
-        "Two-finger tap to reset view",
-      ]
+      "Drag with one finger to orbit",
+      "Pinch with two fingers to zoom",
+      "Two-finger drag to pan",
+      "Double tap to fit the model",
+      "Two-finger tap to reset view",
+    ]
     : [
-        "Drag with mouse to orbit",
-        "Shift + drag to pan",
-        "Scroll to zoom",
-        "Arrow keys to pan",
-        "Use toolbar buttons for fit/reset",
-      ];
+      "Drag with mouse to orbit",
+      "Shift + drag to pan",
+      "Scroll to zoom",
+      "Arrow keys to pan",
+      "Use toolbar buttons for fit/reset",
+    ];
   const coarseTabletBreakpoint = 1024;
   const showTouchFab = isCoarsePointer && viewportWidth < coarseTabletBreakpoint;
   const showTouchTabletFull = isCoarsePointer && viewportWidth >= coarseTabletBreakpoint;
 
+  const viewerControls = useMemo(() => ({
+    onZoomIn: handleZoomIn,
+    onZoomOut: handleZoomOut,
+    onFit: handleFit,
+    onResetView: handleResetView,
+    onScreenshot: handleScreenshot,
+    gridOn: prefs.grid,
+    groundOn: prefs.ground,
+    statsOn: prefs.showStats,
+    shadowsOn: prefs.shadows,
+    onToggleGrid: () => setPrefs(p => ({ ...p, grid: !p.grid })),
+    onToggleGround: () => setPrefs(p => ({ ...p, ground: !p.ground })),
+    onToggleStats: () => setPrefs(p => ({ ...p, showStats: !p.showStats })),
+    onToggleShadows: () => setPrefs(p => ({ ...p, shadows: !p.shadows })),
+    wireframeOn: prefs.wireframe,
+    edgesOn: prefs.edges,
+    onToggleWireframe: () => setPrefs(p => ({ ...p, wireframe: !p.wireframe })),
+    onToggleEdges: () => setPrefs(p => ({ ...p, edges: !p.edges })),
+  }), [handleZoomIn, handleZoomOut, handleFit, handleResetView, handleScreenshot, prefs, setPrefs]);
+
   const heroHeading = !isCoarsePointer && dragActive
     ? "Release to load"
     : loadStatus === "loading"
-    ? "Loading 3MF…"
-    : isCoarsePointer
-    ? "Load a 3MF to get started"
-    : "Drag & drop a 3MF to get started";
+      ? "Loading 3MF…"
+      : isCoarsePointer
+        ? "Load a 3MF to get started"
+        : "Drag & drop a 3MF to get started";
 
   const heroSubtext = !isCoarsePointer && dragActive
     ? "We’ll pull the mesh directly from the file."
     : loadStatus === "loading"
-    ? "Hold tight while we extract meshes."
-    : isCoarsePointer
-    ? "Use the button below to choose a .3mf file from your device."
-    : "Prefer browsing your drive?";
+      ? "Hold tight while we extract meshes."
+      : isCoarsePointer
+        ? "Use the button below to choose a .3mf file from your device."
+        : "Prefer browsing your drive?";
 
   const dropHint = isCoarsePointer
     ? "Use Browse to pick a .3mf file from your device."
@@ -909,38 +912,38 @@ function ViewerApp() {
     if (!showSceneTree) {
       setMobileNavOpen(false);
     }
-  }, [showSceneTree]);
+  }, [showSceneTree, setMobileNavOpen]);
 
   useEffect(() => {
     if (!showScene) {
       setCanvasElement(null);
       setMobileNavOpen(false);
     }
-  }, [showScene]);
+  }, [showScene, setMobileNavOpen]);
 
   useEffect(() => {
     if (!showBottomBar || !isCoarsePointer) {
       setMobileDockOpen(false);
     }
-  }, [showBottomBar, isCoarsePointer]);
+  }, [showBottomBar, isCoarsePointer, setMobileDockOpen]);
 
   useEffect(() => {
     if (!showTouchFab) {
       setMobileDockOpen(false);
     }
-  }, [showTouchFab]);
+  }, [showTouchFab, setMobileDockOpen]);
 
   useEffect(() => {
     if (!showTouchTabletFull) {
       setTabletDockCollapsed(false);
     }
-  }, [showTouchTabletFull]);
+  }, [showTouchTabletFull, setTabletDockCollapsed]);
 
   useEffect(() => {
     if (!helpAvailable) {
       setHelpCardOpen(false);
     }
-  }, [helpAvailable]);
+  }, [helpAvailable, setHelpCardOpen]);
 
   useEffect(() => {
     if (!canvasElement) return undefined;
@@ -993,7 +996,7 @@ function ViewerApp() {
     };
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [mobileDockOpen]);
+  }, [mobileDockOpen, setMobileDockOpen]);
 
   useEffect(() => {
     if (dockVisited) {
@@ -1006,7 +1009,13 @@ function ViewerApp() {
       setDockHintActive(false);
     }
     return undefined;
-  }, [showTouchFab, showTouchTabletFull, tabletDockCollapsed, dockVisited]);
+  }, [
+    showTouchFab,
+    showTouchTabletFull,
+    tabletDockCollapsed,
+    dockVisited,
+    setDockHintActive,
+  ]);
 
   useEffect(() => {
     if (mobileDockOpen) {
@@ -1015,7 +1024,7 @@ function ViewerApp() {
       return () => window.clearTimeout(timer);
     }
     return undefined;
-  }, [mobileDockOpen]);
+  }, [mobileDockOpen, setDockCueActive]);
 
   useEffect(() => {
     if (showTouchTabletFull && !tabletDockCollapsed) {
@@ -1024,7 +1033,7 @@ function ViewerApp() {
       return () => window.clearTimeout(timer);
     }
     return undefined;
-  }, [showTouchTabletFull, tabletDockCollapsed]);
+  }, [showTouchTabletFull, tabletDockCollapsed, setDockCueActive]);
 
   useEffect(() => {
     if (!helpCardOpen) return undefined;
@@ -1053,21 +1062,33 @@ function ViewerApp() {
       document.removeEventListener("touchstart", handlePointer);
       window.removeEventListener("keydown", handleKey);
     };
-  }, [helpCardOpen]);
+  }, [helpCardOpen, setHelpCardOpen]);
 
   const groundSize = sceneBounds ? Math.max(sceneBounds.maxExtent * 2.5, 20) : 20;
   const groundY = sceneBounds ? sceneBounds.min.y - 0.01 : -1;
   const gridDivisions = Math.min(Math.max(Math.round(groundSize), 24), 240);
 
   const appVersion = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "dev";
-  const [openReleaseNotes, setOpenReleaseNotes] = useState(false);
-  const [releaseNotesTimelineOpen, setReleaseNotesTimelineOpen] = useState(false);
   const currentNotes = Array.isArray(releaseNotes?.[appVersion]) ? releaseNotes[appVersion] : null;
 
   return (
     <div
       className={`relative ${pageHeightClass} w-full overflow-x-hidden transition-colors duration-200 ${dragActive ? "bg-sky-50" : "bg-slate-50"}`}
     >
+      {loadStatus === "loading" && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-50/90 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4 rounded-3xl bg-white/90 px-8 py-6 text-center shadow-2xl ring-1 ring-slate-200">
+            <div className="relative h-12 w-12">
+              <div className="absolute inset-0 rounded-full border-4 border-slate-200" />
+              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-slate-500 animate-spin" />
+            </div>
+            <div className="space-y-1">
+              <p className="text-sm font-semibold text-slate-800">Loading {loadedName || "3MF"}…</p>
+              <p className="text-xs text-slate-500">Parsing with lib3mf in the background.</p>
+            </div>
+          </div>
+        </div>
+      )}
       <div className={`pointer-events-none absolute inset-0 transition-opacity duration-150 ${dragActive ? 'opacity-100' : 'opacity-0'}`}>
         <div className="absolute inset-0 bg-sky-300/10 backdrop-blur-[2px]" />
       </div>
@@ -1080,266 +1101,213 @@ function ViewerApp() {
           onChange={handleFileInputChange}
         />
 
-      {showScene && (
-        <ViewerHud
+        {showScene && (
+          <ViewerHud
+            showScene={showScene}
+            fps={fps}
+            helpButtonRef={helpButtonRef}
+            onBackToStart={clearScene}
+          />
+        )}
+
+
+        {((!showScene) || dragActive) && (
+          <ViewerHome
+            showScene={showScene}
+            dragActive={dragActive}
+            backgroundClass={homeBackgroundClass}
+            heroHeading={heroHeading}
+            heroSubtext={heroSubtext}
+            dropHint={dropHint}
+            browseButtonClass={browseButtonClass}
+            loadStatus={loadStatus}
+            onBrowseClick={handleBrowseClick}
+            sampleModels={sampleModels}
+            sampleLoading={sampleLoading}
+            sampleError={sampleError}
+            onLoadSample={handleLoadSample}
+            upcomingCards={upcomingCards}
+            renderingRoadmap={renderingRoadmap}
+            getStatusMeta={getStatusMeta}
+            onOpenReleaseNotes={() => setOpenReleaseNotes(true)}
+            appVersion={appVersion}
+          />
+        )}
+
+
+        <ViewerScene
           showScene={showScene}
-          showSceneTree={showSceneTree}
-          mobileNavOpen={mobileNavOpen}
-          onOpenNav={handleOpenNav}
-          showStats={prefs.showStats}
-          fps={fps}
-          helpAvailable={helpAvailable}
-          helpButtonRef={helpButtonRef}
-          helpCardOpen={helpCardOpen}
-          onToggleHelp={toggleHelpCard}
-          onBackToStart={handleBackToStart}
-          onOpenPrefs={handleOpenPrefs}
+          initialCamPos={initialCamPos}
+          initialTarget={initialTarget}
+          controlsRef={controlsRef}
+          cameraRef={cameraRef}
+          rendererRef={rendererRef}
+          setCanvasElement={setCanvasElement}
+          contentRef={contentRef}
+          groundSize={groundSize}
+          groundY={groundY}
+          gridDivisions={gridDivisions}
+          treeItems={treeItems}
+          onSelectFile={() => fileInputRef.current?.click()}
+          sceneMetadata={sceneData?.metadata}
+          onUpdateSpecifications={checkSpecifications}
         />
-      )}
 
-
-      {((!showScene) || dragActive) && (
-        <ViewerHome
-          showScene={showScene}
-          dragActive={dragActive}
-          backgroundClass={homeBackgroundClass}
-          heroHeading={heroHeading}
-          heroSubtext={heroSubtext}
-          dropHint={dropHint}
-          browseButtonClass={browseButtonClass}
-          loadStatus={loadStatus}
-          onBrowseClick={handleBrowseClick}
-          sampleModels={sampleModels}
-          sampleLoading={sampleLoading}
-          sampleError={sampleError}
-          onLoadSample={handleLoadSample}
-          upcomingCards={upcomingCards}
-          renderingRoadmap={renderingRoadmap}
-          getStatusMeta={getStatusMeta}
-          onOpenReleaseNotes={() => setOpenReleaseNotes(true)}
-          appVersion={appVersion}
-        />
-      )}
-
-
-      <ViewerScene
-        showScene={showScene}
-        prefs={prefs}
-        initialCamPos={initialCamPos}
-        initialTarget={initialTarget}
-        controlsRef={controlsRef}
-        cameraRef={cameraRef}
-        rendererRef={rendererRef}
-        setCanvasElement={setCanvasElement}
-        contentRef={contentRef}
-        sceneObject={sceneObject}
-        hiddenMeshIds={hiddenMeshIds}
-        groundSize={groundSize}
-        groundY={groundY}
-        gridDivisions={gridDivisions}
-        showSceneTree={showSceneTree}
-        treeItems={treeItems}
-        onSelectFile={handleLoadFile}
-        loadStatus={loadStatus}
-        loadedName={loadedName}
-        loadError={loadError}
-        sceneMetadata={sceneData?.metadata || null}
-        onSelectNode={handleSelectNode}
-        selectedNodeId={selectedNodeId}
-        selectedNodeInfo={selectedNodeInfo}
-        onToggleMeshVisibility={toggleMeshVisibility}
-        mobileNavOpen={mobileNavOpen}
-        onCloseNav={() => setMobileNavOpen(false)}
-        onUpdateSpecifications={checkSpecifications}
-        specificationResults={specResults}
-      />
-
-      {helpAvailable && helpCardOpen && (
-        <div className="pointer-events-none fixed right-3 top-24 z-40 sm:top-28">
-          <div
-            ref={helpCardRef}
-            className="pointer-events-auto w-64 rounded-2xl bg-white/95 p-4 text-sm text-slate-600 shadow-2xl ring-1 ring-slate-200"
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                Viewer tips
-              </p>
-              <button
-                type="button"
-                aria-label="Close viewer tips"
-                className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
-                onClick={() => setHelpCardOpen(false)}
-              >
-                <IconClose />
-              </button>
-            </div>
-            <ul className="space-y-1.5">
-              {helpItems.map((item, index) => (
-                <li key={index} className="flex items-start gap-2 text-xs text-slate-600">
-                  <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-400" />
-                  <span>{item}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      )}
-
-      <ViewerOverlays
-        showDesktopBottomBar={showBottomBar && !isCoarsePointer}
-        showTabletDock={showBottomBar && showTouchTabletFull}
-        tabletDockCollapsed={tabletDockCollapsed}
-        onCollapseTabletDock={handleCollapseTabletDock}
-        onExpandTabletDock={handleExpandTabletDock}
-        showTouchFab={showBottomBar && showTouchFab}
-        dockHintActive={dockHintActive}
-        dockCueActive={dockCueActive}
-        onToggleMobileDock={handleToggleMobileDock}
-        mobileDockOpen={mobileDockOpen}
-        onCloseMobileDock={handleCloseMobileDock}
-        controls={{
-          onZoomIn: handleZoomIn,
-          onZoomOut: handleZoomOut,
-          onFit: handleFit,
-          onResetView: handleResetView,
-          onScreenshot: handleScreenshot,
-          gridOn: prefs.grid,
-          groundOn: prefs.ground,
-          statsOn: prefs.showStats,
-          shadowsOn: prefs.shadows,
-          onToggleGrid: handleToggleGrid,
-          onToggleGround: handleToggleGround,
-          onToggleStats: handleToggleStats,
-          onToggleShadows: handleToggleShadows,
-          wireframeOn: prefs.wireframe,
-          edgesOn: prefs.edges,
-          onToggleWireframe: handleToggleWireframe,
-          onToggleEdges: handleToggleEdges,
-        }}
-        loadStatus={loadStatus}
-        loadedName={loadedName}
-        loadError={loadError}
-        helpAvailable={helpAvailable}
-        helpButtonRef={helpButtonRef}
-        helpCardOpen={helpCardOpen}
-        onToggleHelp={toggleHelpCard}
-      />
-
-      <Modal
-        open={diagnosticsNoticeOpen && !!diagnosticsNotice}
-        title="Import issues detected"
-        subtitle="Some diagnostics reported errors while reading this 3MF."
-        onClose={() => setDiagnosticsNoticeOpen(false)}
-        footer={
-          <button
-            onClick={() => setDiagnosticsNoticeOpen(false)}
-            className="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-slate-800"
-          >
-            Got it
-          </button>
-        }
-      >
-        {diagnosticsNotice ? (
-          <div className="space-y-4 text-sm text-slate-600">
-            <p>
-              {`While importing ${diagnosticsNotice.fileName || "this model"}, lib3mf reported ${diagnosticsNotice.errors.toLocaleString()} error${
-                diagnosticsNotice.errors === 1 ? "" : "s"
-              }.`}
-            </p>
-            <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4">
-              <div className="text-[0.75rem] font-semibold uppercase tracking-wide text-rose-600">
-                Errors detected
-              </div>
-              <div className="mt-1 text-2xl font-semibold text-rose-700">
-                {diagnosticsNotice.errors.toLocaleString()}
-              </div>
-              <p className="mt-2 text-[0.75rem] text-rose-600">
-                Portions of the scene or metadata may be incomplete or unreliable.
-              </p>
-            </div>
-            {diagnosticsNotice.warnings > 0 ? (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
-                <div className="text-[0.75rem] font-semibold uppercase tracking-wide text-amber-600">
-                  Warnings detected
-                </div>
-                <div className="mt-1 text-2xl font-semibold text-amber-700">
-                  {diagnosticsNotice.warnings.toLocaleString()}
-                </div>
-                <p className="mt-2 text-[0.75rem] text-amber-700">
-                  Review the diagnostics tab to see the most common warning groups.
+        {helpAvailable && helpCardOpen && (
+          <div className="pointer-events-none fixed right-3 top-24 z-40 sm:top-28">
+            <div
+              ref={helpCardRef}
+              className="pointer-events-auto w-64 rounded-2xl bg-white/95 p-4 text-sm text-slate-600 shadow-2xl ring-1 ring-slate-200"
+            >
+              <div className="mb-3 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Viewer tips
                 </p>
+                <button
+                  type="button"
+                  aria-label="Close viewer tips"
+                  className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                  onClick={() => setHelpCardOpen(false)}
+                >
+                  <IconClose />
+                </button>
               </div>
-            ) : null}
-            <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 text-[0.8rem] leading-relaxed">
-              <p className="font-semibold text-slate-700">Next steps</p>
-              <ul className="mt-2 space-y-1 text-slate-600">
-                <li className="flex items-start gap-2">
-                  <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-300" />
-                  <span>Open the Diagnostics tab to review grouped issues and affected resources.</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-300" />
-                  <span>Consider validating the source 3MF in your authoring tool before re-exporting.</span>
-                </li>
+              <ul className="space-y-1.5">
+                {helpItems.map((item, index) => (
+                  <li key={index} className="flex items-start gap-2 text-xs text-slate-600">
+                    <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-400" />
+                    <span>{item}</span>
+                  </li>
+                ))}
               </ul>
             </div>
           </div>
-        ) : null}
-      </Modal>
+        )}
 
-      {/* Scene Preferences Modal */}
-      <Modal
-        open={openPrefs}
-        title="Scene Preferences"
-        subtitle="Adjust background, lighting, helpers. Changes apply immediately."
-        onClose={() => setOpenPrefs(false)}
-        footer={
-          <button
-            onClick={restorePrefs}
-            className="rounded-md bg-slate-800 text-white px-3 py-1.5 text-sm hover:bg-slate-700"
-          >
-            Restore defaults
-          </button>
-        }
-      >
-        <ScenePreferences prefs={prefs} onChange={setPrefs} />
-      </Modal>
-
-      <Modal
-        open={openReleaseNotes}
-        title={`Release Notes – v${appVersion}`}
-        subtitle={releaseNotesTimelineOpen ? "Full release history" : "What’s new in this build"}
-        onClose={() => {
-          setOpenReleaseNotes(false);
-          setReleaseNotesTimelineOpen(false);
-        }}
-        size="lg"
-      >
-        <ReleaseNotesModal
-          title={`Version v${appVersion}`}
-          subtitle={releaseNotesTimelineOpen ? "All release entries" : "Highlights"}
-          currentVersion={`v${appVersion}`}
-          currentNotes={currentNotes}
-          releaseNotes={releaseNotes}
-          showTimeline={releaseNotesTimelineOpen}
-          onToggleTimeline={() => setReleaseNotesTimelineOpen((prev) => !prev)}
+        <ViewerOverlays
+          showDesktopBottomBar={showBottomBar && !isCoarsePointer}
+          showTabletDock={showBottomBar && showTouchTabletFull}
+          showTouchFab={showBottomBar && showTouchFab}
+          controls={viewerControls}
         />
-      </Modal>
+
+        <Modal
+          open={diagnosticsNoticeOpen && !!diagnosticsNotice}
+          title="Import issues detected"
+          subtitle="Some diagnostics reported errors while reading this 3MF."
+          onClose={() => setDiagnosticsNoticeOpen(false)}
+          footer={
+            <button
+              onClick={() => setDiagnosticsNoticeOpen(false)}
+              className="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-slate-800"
+            >
+              Got it
+            </button>
+          }
+        >
+          {diagnosticsNotice ? (
+            <div className="space-y-4 text-sm text-slate-600">
+              <p>
+                {`While importing ${diagnosticsNotice.fileName || "this model"}, lib3mf reported ${diagnosticsNotice.errors.toLocaleString()} error${diagnosticsNotice.errors === 1 ? "" : "s"
+                  }.`}
+              </p>
+              <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4">
+                <div className="text-[0.75rem] font-semibold uppercase tracking-wide text-rose-600">
+                  Errors detected
+                </div>
+                <div className="mt-1 text-2xl font-semibold text-rose-700">
+                  {diagnosticsNotice.errors.toLocaleString()}
+                </div>
+                <p className="mt-2 text-[0.75rem] text-rose-600">
+                  Portions of the scene or metadata may be incomplete or unreliable.
+                </p>
+              </div>
+              {diagnosticsNotice.warnings > 0 ? (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+                  <div className="text-[0.75rem] font-semibold uppercase tracking-wide text-amber-600">
+                    Warnings detected
+                  </div>
+                  <div className="mt-1 text-2xl font-semibold text-amber-700">
+                    {diagnosticsNotice.warnings.toLocaleString()}
+                  </div>
+                  <p className="mt-2 text-[0.75rem] text-amber-700">
+                    Review the diagnostics tab to see the most common warning groups.
+                  </p>
+                </div>
+              ) : null}
+              <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 text-[0.8rem] leading-relaxed">
+                <p className="font-semibold text-slate-700">Next steps</p>
+                <ul className="mt-2 space-y-1 text-slate-600">
+                  <li className="flex items-start gap-2">
+                    <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-300" />
+                    <span>Open the Diagnostics tab to review grouped issues and affected resources.</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-300" />
+                    <span>Consider validating the source 3MF in your authoring tool before re-exporting.</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          ) : null}
+        </Modal>
+
+        {/* Scene Preferences Modal */}
+        <Modal
+          open={openPrefs}
+          title="Scene Preferences"
+          subtitle="Adjust background, lighting, helpers. Changes apply immediately."
+          onClose={() => setOpenPrefs(false)}
+          footer={
+            <button
+              onClick={restorePrefs}
+              className="rounded-md bg-slate-800 text-white px-3 py-1.5 text-sm hover:bg-slate-700"
+            >
+              Restore defaults
+            </button>
+          }
+        >
+          <ScenePreferences prefs={prefs} onChange={setPrefs} />
+        </Modal>
+
+        <Modal
+          open={openReleaseNotes}
+          title={`Release Notes – v${appVersion}`}
+          subtitle={releaseNotesTimelineOpen ? "Full release history" : "What’s new in this build"}
+          onClose={() => {
+            setOpenReleaseNotes(false);
+            setReleaseNotesTimelineOpen(false);
+          }}
+          size="lg"
+        >
+          <ReleaseNotesModal
+            title={`Version v${appVersion}`}
+            subtitle={releaseNotesTimelineOpen ? "All release entries" : "Highlights"}
+            currentVersion={`v${appVersion}`}
+            currentNotes={currentNotes}
+            releaseNotes={releaseNotes}
+            showTimeline={releaseNotesTimelineOpen}
+            onToggleTimeline={() => setReleaseNotesTimelineOpen((prev) => !prev)}
+          />
+        </Modal>
+      </div>
     </div>
-  </div>
   );
 }
 
 function ViewerBootstrap() {
   const { ensureLib3mf } = useThreeMFLoader();
-  const [runtimeReady, setRuntimeReady] = useState(false);
-  const [runtimeError, setRuntimeError] = useState(null);
+  const runtimeReady = useViewerStore((state) => state.runtime.ready);
+  const runtimeError = useViewerStore((state) => state.runtime.error);
+  const setRuntimeReady = useViewerStore((state) => state.setRuntimeReady);
+  const setRuntimeError = useViewerStore((state) => state.setRuntimeError);
 
   useEffect(() => {
     let cancelled = false;
 
     const start = async () => {
       try {
+        setRuntimeError(null);
         await ensureLib3mf();
         if (!cancelled) setRuntimeReady(true);
       } catch (err) {
@@ -1353,7 +1321,7 @@ function ViewerBootstrap() {
     return () => {
       cancelled = true;
     };
-  }, [ensureLib3mf]);
+  }, [ensureLib3mf, setRuntimeError, setRuntimeReady]);
 
   if (runtimeError) {
     return (
