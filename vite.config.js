@@ -6,11 +6,11 @@ import pkg from './package.json' with { type: 'json' }
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  build: {
-    chunkSizeWarningLimit: 2000,
-  },
   worker: {
     format: 'es',
+  },
+  build: {
+    chunkSizeWarningLimit: 2000,
   },
   logLevel: 'info',
   define: {

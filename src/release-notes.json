@@ -1,4 +1,9 @@
 {
+  "0.21.0": [
+    "Improved support for textured 3MF files",
+    "Marked texture support as complete on the home page",
+    "Removed the Wheel sample from the bundled library"
+  ],
   "0.20.0": [
     "Revived project with dependency updates (React 19, Vite 7, Three.js 0.182, Tailwind 4)",
     "Introduced Vitest for unit testing",

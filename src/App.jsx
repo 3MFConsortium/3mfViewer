@@ -68,6 +68,7 @@ function ViewerApp() {
   const setDragActive = useViewerStore((state) => state.setDragActive);
   const beginLoad = useViewerStore((state) => state.beginLoad);
   const finishLoad = useViewerStore((state) => state.finishLoad);
+  const setLoadingScene = useViewerStore((state) => state.setLoadingScene);
   const failLoad = useViewerStore((state) => state.failLoad);
   const clearScene = useViewerStore((state) => state.clearScene);
   const setPrefs = useViewerStore((state) => state.setPrefs);
@@ -90,6 +91,13 @@ function ViewerApp() {
   const dragDepthRef = useRef(0);
   const fileInputRef = useRef(null);
   const [canvasElement, setCanvasElement] = useState(null);
+  const [loadProgress, setLoadProgress] = useState(null);
+  const [loadTimings, setLoadTimings] = useState([]);
+  const [loadStartMs, setLoadStartMs] = useState(null);
+  const [loadRate, setLoadRate] = useState(null);
+  const [loadLastUpdateMs, setLoadLastUpdateMs] = useState(null);
+  const [loadStage, setLoadStage] = useState(null);
+  const lastProgressRef = useRef({ triangles: 0, at: 0 });
   const helpButtonRef = useRef(null);
   const helpCardRef = useRef(null);
   const fps = useRafFps({ sample: 750 });
@@ -187,6 +195,11 @@ function ViewerApp() {
 
   const applyLoadedResult = useCallback(
     (rawResult, fileLabel) => {
+      console.info("[viewer] applyLoadedResult", {
+        file: fileLabel,
+        meshes: rawResult?.meshCount ?? rawResult?.meshResources?.length,
+        time: Date.now(),
+      });
       const fullDiagnostics = formatDiagnosticsForUi(rawResult.diagnostics, {
         includeFullDetails: true,
       });
@@ -268,7 +281,7 @@ function ViewerApp() {
       { label: "Mesh geometry", status: "now" },
       { label: "Properties", status: "now" },
       { label: "Colors", status: "now" },
-      { label: "Textures", status: "progress" },
+      { label: "Textures", status: "now" },
       { label: "Slice extension", status: "progress" },
       { label: "Beam lattice extension", status: "soon" },
       { label: "Volumetric extension", status: "soon" },
@@ -307,6 +320,10 @@ function ViewerApp() {
         setSampleError(null);
         setSampleLoading(sample.name);
         setDragActive(false);
+        setLoadProgress(null);
+        setLoadTimings([]);
+        setLoadStartMs(performance.now());
+        setLoadStage(null);
         const fileLabel = sample.fileName || `${sample.name}.3mf`;
         beginLoad(fileLabel);
 
@@ -331,6 +348,30 @@ function ViewerApp() {
 
         const rawResult = await load3mf(arrayBuffer, fileLabel, {
           specificationUrls: specUrls,
+          onStream: (partial) => {
+            if (!partial?.group) return;
+            setLoadingScene(partial.group, partial);
+          },
+          onProgress: (progress) => {
+            setLoadProgress((prev) => ({ ...prev, ...progress }));
+            const now = performance.now();
+            const last = lastProgressRef.current;
+            if (last.at > 0 && progress.triangles >= last.triangles) {
+              const deltaTri = progress.triangles - last.triangles;
+              const deltaMs = now - last.at;
+              if (deltaMs > 0) {
+                setLoadRate(deltaTri / (deltaMs / 1000));
+              }
+            }
+            lastProgressRef.current = { triangles: progress.triangles || 0, at: now };
+            setLoadLastUpdateMs(now);
+          },
+          onMeshTiming: (timing) => {
+            setLoadTimings((prev) => [...prev, timing]);
+          },
+          onStage: (stageInfo) => {
+            setLoadStage(stageInfo);
+          },
         });
         const processedResult = applyLoadedResult(rawResult, fileLabel);
         if (Array.isArray(processedResult.metadata?.specifications)) {
@@ -347,6 +388,13 @@ function ViewerApp() {
         resetTransientSpecs();
       } finally {
         setSampleLoading(null);
+        setLoadProgress(null);
+        setLoadTimings([]);
+        setLoadStartMs(null);
+        setLoadRate(null);
+        setLoadLastUpdateMs(null);
+        setLoadStage(null);
+        lastProgressRef.current = { triangles: 0, at: 0 };
       }
     },
     [
@@ -368,6 +416,153 @@ function ViewerApp() {
   // ---------- scene prefs ----------
   // ---------- tree data ----------
   const treeItems = useMemo(() => {
+    if (sceneData?.meshResources?.length && sceneData?.items?.length) {
+      const meshMap = new Map(
+        sceneData.meshResources.map((resource) => [resource.resourceId, resource])
+      );
+      const componentMap = new Map(
+        (sceneData.componentResources || []).map((resource) => [resource.resourceId, resource])
+      );
+
+      const buildMeshNode = (resource, context) => {
+        const instanceKey = context.instanceKey ?? String(resource.resourceId);
+        const id = `mesh-${resource.resourceId}-${instanceKey}`;
+        const meta = {
+          vertexCount: resource.vertexCount,
+          triangleCount: resource.triangleCount,
+          resourceId: resource.resourceId,
+          uniqueResourceId: resource.uniqueResourceId ?? null,
+          uuid: resource.uuid ?? null,
+          hasUUID: resource.hasUUID ?? false,
+          meshDiagnostics: resource.meshSummary,
+          materialColorStats: resource.materialColorStats,
+          objectLevelProperty: resource.objectLevelProperty,
+          buildItemIndex: context.buildItemIndex,
+          buildItemUuid: context.buildItemUuid ?? null,
+          resourceUuid: context.resourceUuid ?? null,
+        };
+        if (Array.isArray(context.metadataEntries) && context.metadataEntries.length) {
+          meta.metadataEntries = context.metadataEntries;
+        }
+        if (context.transform43) {
+          meta.transforms = [
+            {
+              label: context.transformLabel || `Build item ${context.buildItemIndex ?? ""}`.trim(),
+              matrix4x3: context.transform43,
+            },
+          ];
+        }
+        return {
+          id,
+          visibilityId: String(resource.resourceId),
+          name: resource.displayName || resource.name || `Mesh ${resource.resourceId ?? "?"}`,
+          type: "mesh",
+          isOpenByDefault: false,
+          children: [],
+          meta,
+        };
+      };
+
+      const buildComponentNode = (resource, context, visited) => {
+        const instanceKey = context.instanceKey ?? String(resource.resourceId);
+        const id = `group-${resource.resourceId}-${instanceKey}`;
+        const meta = {
+          resourceId: resource.resourceId,
+          uniqueResourceId: resource.uniqueResourceId ?? null,
+          uuid: resource.uuid ?? null,
+          hasUUID: resource.hasUUID ?? false,
+          buildItemIndex: context.buildItemIndex,
+          buildItemUuid: context.buildItemUuid ?? null,
+          resourceUuid: context.resourceUuid ?? null,
+          components: resource.components?.map((component) => ({
+            index: component.index,
+            targetId: component.targetId,
+            hasTransform: component.hasTransform,
+            transform4x3: component.transform4x3,
+            uuid: component.uuid ?? null,
+            hasUUID: component.hasUUID ?? false,
+          })),
+        };
+        if (Array.isArray(context.metadataEntries) && context.metadataEntries.length) {
+          meta.metadataEntries = context.metadataEntries;
+        }
+        if (context.transform43) {
+          meta.transforms = [
+            {
+              label: context.transformLabel || `Build item ${context.buildItemIndex ?? ""}`.trim(),
+              matrix4x3: context.transform43,
+            },
+          ];
+        }
+
+        const children = [];
+        resource.components?.forEach((component) => {
+          if (visited.has(component.targetId)) return;
+          const child = buildResourceNode(
+            component.targetId,
+            {
+              ...context,
+              instanceKey: `${instanceKey}-${component.index}`,
+              metadataEntries: undefined,
+              transform43: component.transform4x3,
+              transformLabel: component.hasTransform
+                ? `${resource.displayName || "Component"} · ${component.index}`
+                : `${resource.displayName || "Component"} · ${component.index} (identity)`,
+              componentPath: [
+                ...(context.componentPath || []),
+                {
+                  resourceId: resource.resourceId,
+                  componentIndex: component.index,
+                  resourceUuid: resource.uuid ?? null,
+                  componentUuid: component.uuid ?? null,
+                },
+              ],
+            },
+            visited
+          );
+          if (child) children.push(child);
+        });
+
+        return {
+          id,
+          name: resource.displayName || resource.name || `Component ${resource.resourceId ?? "?"}`,
+          type: "group",
+          isOpenByDefault: true,
+          children,
+          meta,
+        };
+      };
+
+      const buildResourceNode = (resourceId, context = {}, visited = new Set()) => {
+        if (meshMap.has(resourceId)) {
+          return buildMeshNode(meshMap.get(resourceId), context);
+        }
+        if (componentMap.has(resourceId)) {
+          if (visited.has(resourceId)) return null;
+          visited.add(resourceId);
+          const node = buildComponentNode(componentMap.get(resourceId), context, visited);
+          visited.delete(resourceId);
+          return node;
+        }
+        return null;
+      };
+
+      return sceneData.items
+        .map((item) =>
+          buildResourceNode(item.resourceId, {
+            buildItemIndex: item.index,
+            buildItemUuid: item.uuid ?? null,
+            metadataEntries: item.metadata,
+            transform43: item.transform,
+            transformLabel: item.transform ? `Build item ${item.index}` : null,
+            instanceKey: `item-${item.index}`,
+            resourceUuid: item.objectUUID ?? null,
+            componentPath: [],
+          })
+        )
+        .filter(Boolean);
+    }
+
     if (!sceneObject) return [];
 
     const toTreeNode = (obj, isRoot = false) => {
@@ -466,7 +661,7 @@ function ViewerApp() {
     };
 
     return [toTreeNode(sceneObject, true)].filter(Boolean);
-  }, [sceneObject]);
+  }, [sceneData, sceneObject]);
 
   const sceneBounds = useMemo(() => {
     if (!sceneObject) return null;
@@ -496,6 +691,10 @@ function ViewerApp() {
       resetTransientSpecs();
       beginLoad(file.name);
       setMobileNavOpen(false);
+      setLoadProgress(null);
+      setLoadTimings([]);
+      setLoadStartMs(performance.now());
+      setLoadStage(null);
 
       try {
         const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
@@ -506,6 +705,30 @@ function ViewerApp() {
         const arrayBuffer = await file.arrayBuffer();
         const rawResult = await load3mf(arrayBuffer, file.name, {
           specificationUrls: specUrls,
+          onStream: (partial) => {
+            if (!partial?.group) return;
+            setLoadingScene(partial.group, partial);
+          },
+          onProgress: (progress) => {
+            setLoadProgress((prev) => ({ ...prev, ...progress }));
+            const now = performance.now();
+            const last = lastProgressRef.current;
+            if (last.at > 0 && progress.triangles >= last.triangles) {
+              const deltaTri = progress.triangles - last.triangles;
+              const deltaMs = now - last.at;
+              if (deltaMs > 0) {
+                setLoadRate(deltaTri / (deltaMs / 1000));
+              }
+            }
+            lastProgressRef.current = { triangles: progress.triangles || 0, at: now };
+            setLoadLastUpdateMs(now);
+          },
+          onMeshTiming: (timing) => {
+            setLoadTimings((prev) => [...prev, timing]);
+          },
+          onStage: (stageInfo) => {
+            setLoadStage(stageInfo);
+          },
         });
 
         const processedResult = applyLoadedResult(rawResult, file.name);
@@ -515,11 +738,25 @@ function ViewerApp() {
             processedResult.metadata.specifications.map((s) => s.url).filter(Boolean)
           );
         }
+        setLoadProgress(null);
+        setLoadTimings([]);
+        setLoadStartMs(null);
+        setLoadRate(null);
+        setLoadLastUpdateMs(null);
+        setLoadStage(null);
+        lastProgressRef.current = { triangles: 0, at: 0 };
       } catch (err) {
         console.error("Failed to load model", err);
         const message = err?.message || "Unable to load file.";
         failLoad(message);
         resetTransientSpecs();
+        setLoadProgress(null);
+        setLoadTimings([]);
+        setLoadStartMs(null);
+        setLoadRate(null);
+        setLoadLastUpdateMs(null);
+        setLoadStage(null);
+        lastProgressRef.current = { triangles: 0, at: 0 };
       }
     },
     [
@@ -784,9 +1021,13 @@ function ViewerApp() {
       cancelAnimationFrame(fitRafRef.current);
       return undefined;
     }
+    if (loadStatus === "loading" && !sceneObject.userData?.streamingReady) {
+      cancelAnimationFrame(fitRafRef.current);
+      return undefined;
+    }
     triggerFit();
     return () => cancelAnimationFrame(fitRafRef.current);
-  }, [sceneObject, triggerFit]);
+  }, [sceneObject, loadStatus, triggerFit]);
 
   // Arrow keys: keep keyboard panning even without on-screen D-pad
   useEffect(() => {
@@ -907,6 +1148,31 @@ function ViewerApp() {
     loadStatus === "loading"
       ? "cursor-progress bg-white/30 text-white/70"
       : "bg-gradient-to-r from-sky-500 via-sky-600 to-violet-500 text-white shadow-sky-500/30 ring-1 ring-sky-500/40 hover:from-sky-600 hover:via-sky-700 hover:to-violet-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500";
+
+  const progressPercent = loadProgress?.totalTriangles
+    ? Math.min(100, Math.round((loadProgress.triangles / loadProgress.totalTriangles) * 100))
+    : null;
+  const progressLabel = loadProgress?.currentResourceName
+    ? `Loading ${loadProgress.currentResourceName}`
+    : `Loading ${loadedName || "3MF"}`;
+  const progressSubLabel = loadProgress?.resourceTotal
+    ? `Mesh ${loadProgress.resourceIndex} of ${loadProgress.resourceTotal}${loadProgress?.isTextured ? " • Textured mesh (slower)" : ""}`
+    : loadStage?.detail || "Parsing 3MF + building task list…";
+  const formatElapsed = (elapsedMs) => {
+    if (!Number.isFinite(elapsedMs)) return "0s";
+    const totalSeconds = Math.max(0, Math.floor(elapsedMs / 1000));
+    if (totalSeconds < 60) return `${totalSeconds}s`;
+    const minutes = Math.floor(totalSeconds / 60);
+    const seconds = totalSeconds % 60;
+    return `${minutes}m ${seconds}s`;
+  };
+  const elapsedLabel = loadStartMs ? formatElapsed(performance.now() - loadStartMs) : "0s";
+  const rateLabel = loadRate
+    ? `${Math.round(loadRate).toLocaleString()} tri/s`
+    : null;
+  const lastUpdateLabel = loadLastUpdateMs
+    ? formatElapsed(performance.now() - loadLastUpdateMs)
+    : null;
 
   useEffect(() => {
     if (!showSceneTree) {
@@ -1076,15 +1342,37 @@ function ViewerApp() {
       className={`relative ${pageHeightClass} w-full overflow-x-hidden transition-colors duration-200 ${dragActive ? "bg-sky-50" : "bg-slate-50"}`}
     >
       {loadStatus === "loading" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-50/90 backdrop-blur-sm">
-          <div className="flex flex-col items-center gap-4 rounded-3xl bg-white/90 px-8 py-6 text-center shadow-2xl ring-1 ring-slate-200">
-            <div className="relative h-12 w-12">
-              <div className="absolute inset-0 rounded-full border-4 border-slate-200" />
-              <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-slate-500 animate-spin" />
-            </div>
-            <div className="space-y-1">
-              <p className="text-sm font-semibold text-slate-800">Loading {loadedName || "3MF"}…</p>
-              <p className="text-xs text-slate-500">Parsing with lib3mf in the background.</p>
+        <div
+          className="fixed inset-0 z-50"
+          onWheel={(event) => event.preventDefault()}
+          onTouchMove={(event) => event.preventDefault()}
+        >
+          <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px]" />
+          <div className="absolute inset-0 flex items-center justify-center px-6">
+            <div className="pointer-events-none w-full max-w-lg rounded-3xl bg-white/95 px-6 py-5 text-center shadow-2xl ring-1 ring-slate-200">
+              <div className="text-sm font-semibold text-slate-800">{progressLabel}</div>
+              <div className="mt-1 text-xs text-slate-500">{progressSubLabel}</div>
+              {loadStage?.stage ? (
+                <div className="mt-1 text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                  Stage {loadStage.stage.replace(/-/g, " ")}
+                </div>
+              ) : null}
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-sky-500 via-sky-600 to-violet-500 transition-all"
+                  style={{ width: `${progressPercent ?? 5}%` }}
+                />
+              </div>
+              <div className="mt-2 text-[0.7rem] text-slate-500">
+                {progressPercent !== null
+                  ? `${progressPercent}% • ${loadProgress?.triangles?.toLocaleString() ?? 0} / ${loadProgress?.totalTriangles?.toLocaleString() ?? 0} tri`
+                  : "Building geometry…"}
+              </div>
+              <div className="mt-1 text-[0.65rem] text-slate-400">
+                Elapsed {elapsedLabel}
+                {rateLabel ? ` • ${rateLabel}` : ""}
+                {lastUpdateLabel ? ` • Last update ${lastUpdateLabel} ago` : ""}
+              </div>
             </div>
           </div>
         </div>

@@ -97,7 +97,8 @@ function TreeNode({
   const [isOpen, setIsOpen] = useState(node.isOpenByDefault || false);
   const hasChildren = node.children && node.children.length > 0;
   const isMesh = node.type === "mesh";
-  const hidden = isMesh ? hiddenMeshIds.includes(node.id) : false;
+  const visibilityKey = node.visibilityId ?? node.id;
+  const hidden = isMesh ? hiddenMeshIds.includes(visibilityKey) : false;
   const isSelected = selectedId === node.id;
   const tooltipLines = [node.name];
   if (node.meta?.resourceId !== undefined) tooltipLines.push(`Resource ID: ${node.meta.resourceId}`);
@@ -150,7 +151,7 @@ function TreeNode({
             }`}
             onClick={(event) => {
               event.stopPropagation();
-              onToggleVisibility?.(node.id);
+              onToggleVisibility?.(visibilityKey);
             }}
           >
             {hidden ? <IconHidden /> : <IconVisible />}
@@ -807,7 +808,7 @@ export function SceneTree({
   );
 
   const listSection = (
-    <div className="flex-1 overflow-auto px-3 pb-3 pt-3">
+    <div className="flex-1 overflow-auto px-3 pb-20 pt-3">
       {items.length > 0 ? (
         <ul className="space-y-1">
           {items.map((node) => (
@@ -1340,13 +1341,6 @@ export function SceneTree({
             align: "left",
           });
         }
-        if (meta.meshDiagnostics?.manifoldOriented !== undefined) {
-          rows.push({
-            label: "Manifold",
-            value: meta.meshDiagnostics.manifoldOriented ? "Yes" : "No",
-            align: "right",
-          });
-        }
         if (meta.meshDiagnostics?.hasSlices) {
           rows.push({ label: "Slices", value: "Yes", align: "right" });
         }
@@ -1464,7 +1458,7 @@ export function SceneTree({
   return (
     <>
       <aside className={panelWrapper} aria-label="Scene Tree">
-        <div className="flex max-h-[calc(100vh-10rem)] flex-col overflow-hidden rounded-2xl bg-white/95 backdrop-blur-sm ring-1 ring-slate-200 shadow-lg sm:max-h-[calc(100vh-5rem)]">
+        <div className="flex max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-2xl bg-white/95 backdrop-blur-sm ring-1 ring-slate-200 shadow-lg sm:max-h-[calc(100vh-11rem)]">
           {sharedHeader}
           {listSection}
           {infoSection}

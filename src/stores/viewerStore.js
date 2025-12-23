@@ -2,15 +2,15 @@ import { create } from "zustand";
 
 export const DEFAULT_PREFS = {
   background: "#f8fafc",
-  ambient: 0.6,
-  directional: 1.2,
+  ambient: 0.8,
+  directional: 1.5,
   dirColor: "#ffffff",
   shadows: false,
   ground: true,
   grid: false,
   showStats: true,
   wireframe: false,
-  edges: true,
+  edges: false,
   edgeColor: "#111827",
   uiSceneTree: true,
   uiBottomControls: true,
@@ -136,6 +136,14 @@ const initializer = (set) => ({
         hiddenMeshIds: [],
         selectedNodeId: null,
         selectedNodeInfo: null,
+      },
+    })),
+  setLoadingScene: (sceneObject, sceneData) =>
+    set((state) => ({
+      viewer: {
+        ...state.viewer,
+        sceneObject,
+        sceneData,
       },
     })),
   failLoad: (errorMessage) =>

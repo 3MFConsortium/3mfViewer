@@ -37,6 +37,87 @@ function toInt(v) {
 
 const SPECIFICATION_URL = "http://schemas.microsoft.com/3dmanufacturing/core/2015/02";
 
+// --- Matrix Math Helpers for Component Transforms ---
+function mat4Identity() {
+    return [
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+    ];
+}
+
+function mat4Multiply(a, b) {
+    const out = new Array(16);
+    const a00 = a[0], a01 = a[1], a02 = a[2], a03 = a[3];
+    const a10 = a[4], a11 = a[5], a12 = a[6], a13 = a[7];
+    const a20 = a[8], a21 = a[9], a22 = a[10], a23 = a[11];
+    const a30 = a[12], a31 = a[13], a32 = a[14], a33 = a[15];
+
+    let b0 = b[0], b1 = b[1], b2 = b[2], b3 = b[3];
+    out[0] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+    out[1] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+    out[2] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+    out[3] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+
+    b0 = b[4]; b1 = b[5]; b2 = b[6]; b3 = b[7];
+    out[4] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+    out[5] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+    out[6] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+    out[7] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+
+    b0 = b[8]; b1 = b[9]; b2 = b[10]; b3 = b[11];
+    out[8] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+    out[9] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+    out[10] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+    out[11] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+
+    b0 = b[12]; b1 = b[13]; b2 = b[14]; b3 = b[15];
+    out[12] = b0 * a00 + b1 * a10 + b2 * a20 + b3 * a30;
+    out[13] = b0 * a01 + b1 * a11 + b2 * a21 + b3 * a31;
+    out[14] = b0 * a02 + b1 * a12 + b2 * a22 + b3 * a32;
+    out[15] = b0 * a03 + b1 * a13 + b2 * a23 + b3 * a33;
+    return out;
+}
+
+function mat4From3mf(matrix43) {
+    if (!Array.isArray(matrix43) || matrix43.length !== 4) return mat4Identity();
+    // 3MF is 4x3. We convert to 4x4 column-major (OpenGL/WebGL standard).
+    // matrix43 is usually row-major [ [m00, m01, m02], [m10, m11, m12], ... ]
+    // or column vectors? 3MF spec says 4 rows, 3 columns.
+    // The previous loader MatrixFromTransform43 implementation used:
+    // set(0,0, 0,1, 0,2, 3,0 ...)  <-- wait, THREE Matrix4 set() is row-major arguments but stores column-major.
+    // Let's match the THREE.Matrix4 logic:
+    // row 1: m00 m01 m02 m30(tx) ? No. 
+    // 3MF transform is:
+    // m00 m01 m02
+    // m10 m11 m12
+    // m20 m21 m22
+    // m30 m31 m32 (translation)
+    //
+    // THREE.Matrix4 is column-major internal:
+    // 0:m00 4:m01 8:m02 12:tx
+    // 1:m10 5:m11 9:m12 13:ty
+    // 2:m20 6:m21 10:m22 14:tz
+    // 3:0   7:0   11:0   15:1
+
+    const m = matrix43;
+    return [
+        m[0][0], m[0][1], m[0][2], 0,
+        m[1][0], m[1][1], m[1][2], 0,
+        m[2][0], m[2][1], m[2][2], 0,
+        m[3][0], m[3][1], m[3][2], 1
+    ];
+}
+
+function applyMat4ToPoint(m, x, y, z) {
+    const tx = m[0] * x + m[4] * y + m[8] * z + m[12];
+    const ty = m[1] * x + m[5] * y + m[9] * z + m[13];
+    const tz = m[2] * x + m[6] * y + m[10] * z + m[14];
+    return { x: tx, y: ty, z: tz };
+}
+
+
 export class Lib3mfEngine {
     constructor(lib, options = {}) {
         this.lib = lib;
@@ -629,6 +710,65 @@ export class Lib3mfEngine {
         return { baseLookup, colorLookup };
     }
 
+    buildTextureLookupMaps(textureGroups) {
+        const textureLookup = new Map();
+
+        const register = (group) => {
+            if (!group) return;
+            // Map propertyID -> { u, v }
+            const byId = new Map();
+            const ordered = [];
+
+            // group.coords is array of { propertyId, u, v }
+            group.coords.forEach((entry, index) => {
+                const normalized = normalizePropertyId(entry.propertyId);
+                const uv = { u: entry.u, v: 1.0 - entry.v };
+
+                if (normalized != null) {
+                    byId.set(normalized, uv);
+                    ordered.push(normalized);
+                } else {
+                    // fall back to index if no property ID? 
+                    // ideally texture groups usually have property IDs
+                    // checking existing readTexture2DGroupEntries logic...
+                    // "coords" are populated there.
+                }
+
+                // If the group has explicit propertyIds array distinct from coords?
+                // readTexture2DGroupEntries puts chosenId into ids[], and {propertyId, u, v} into coords[] matched by index.
+            });
+
+            // Re-reading readTexture2DGroupEntries:
+            // It pushes to `ids` and `coords` in lock-step.
+            // But `coords` has explicit objects.
+            // Let's just use what we have in `coords`.
+
+            // To support both (ID-based and Index-based) lookups efficiently:
+            // We can just mirror what buildMaterialLookupMaps does.
+
+            const ids = group.propertyIds; // array of IDs
+            // group.coords is array of objects { propertyId, u, v } corresponding to 'ids' indices?
+            // Actually readTexture2DGroupEntries implementation:
+            // ids.push(chosenId);
+            // coords.push({ propertyId: chosenId, u, v });
+            // So they align 1:1.
+
+
+            const keys = [group.groupId, group.uniqueResourceId]
+                .map((value) => (value === undefined || value === null ? null : String(value)))
+                .filter(Boolean);
+
+            keys.forEach((key) => textureLookup.set(key, {
+                byId,
+                ids: group.propertyIds,
+                textureId: group.textureId
+            }));
+        };
+
+        textureGroups.forEach(register);
+        return { textureLookup };
+    }
+
     resolveMaterialColor(resourceId, propertyId, lookupMaps) {
         if (resourceId === undefined || resourceId === null) return null;
         if (propertyId === undefined || propertyId === null) return null;
@@ -663,6 +803,34 @@ export class Lib3mfEngine {
         };
 
         return fromGroup(baseLookup.get(key)) ?? fromGroup(colorLookup.get(key)) ?? null;
+    }
+
+    resolveTextureUV(resourceId, propertyId, textureLookup) {
+        if (resourceId === undefined || resourceId === null) return null;
+        if (propertyId === undefined || propertyId === null) return null;
+
+        const key = String(resourceId);
+        const entry = textureLookup.get(key);
+        if (!entry) return null; // Not a texture group
+
+        const { byId, ids, textureId } = entry;
+
+        const normalized = normalizePropertyId(propertyId);
+        let uv = null;
+
+        if (normalized != null && byId.has(normalized)) {
+            uv = byId.get(normalized);
+        } else if (Number.isInteger(propertyId) && byId.has(propertyId)) {
+            uv = byId.get(propertyId);
+        } else if (Number.isInteger(normalized) && normalized >= 0 && normalized < ids.length) {
+            const pid = ids[normalized];
+            if (byId.has(pid)) uv = byId.get(pid);
+        } else if (Number.isInteger(normalized) && normalized >= 1 && normalized <= ids.length) {
+            const pid = ids[normalized - 1]; // 1-based fallback
+            if (byId.has(pid)) uv = byId.get(pid);
+        }
+
+        return { uv, textureId };
     }
 
     // Map triangle p# → actual PropertyID depending on mode (ID-first vs index-first)
@@ -815,6 +983,79 @@ export class Lib3mfEngine {
         };
     }
 
+
+    mapTriangleTextureCoordinates(meshResource, textureLookup) {
+        const { triangleProperties, objectLevelProperty, triangleCount } = meshResource;
+        // Output: Float32Array (triangleCount * 3 * 2) -> [u1, v1, u2, v2, u3, v3, ...] per triangle
+        const textureCoordinates = new Float32Array(triangleCount * 6);
+        let trianglesWithTexture = 0;
+        let globalTextureId = null;
+
+        // We'll track which texture IDs are used. 
+        // Ideally a mesh uses a single texture map, but 3MF allows per-triangle materials.
+        // We'll optimistically look for a dominant texture ID. 
+        // If there are multiple, things get complex (multi-material), we might just return the first one or a set.
+        const usedTextureIds = new Set();
+
+        for (let tri = 0; tri < triangleCount; tri += 1) {
+            const info = triangleProperties[tri] || null;
+            let resourceId = info?.resourceId ?? null;
+            let propertyIds = Array.isArray(info?.propertyIds) && info.propertyIds.length === 3
+                ? info.propertyIds
+                : null;
+
+            if ((!propertyIds || resourceId == null) && objectLevelProperty?.ok) {
+                resourceId = resourceId ?? objectLevelProperty.resourceId;
+                if (!propertyIds) {
+                    propertyIds = [
+                        objectLevelProperty.propertyId,
+                        objectLevelProperty.propertyId,
+                        objectLevelProperty.propertyId,
+                    ];
+                }
+            }
+
+            // Unlike colors, for textures, we specifically need the resourceId to match a Texture2DGroup
+            if (resourceId == null || !propertyIds) continue;
+
+            // Check if this resource ID is a texture group
+            const key = String(resourceId);
+            if (!textureLookup.has(key)) continue;
+
+            // Note: coerceTrianglePid logic is for resolving the PropertyID (index vs ID)
+            // We can duplicate that logic here or make it generic. 
+            // Since we passed lookupMaps to coerceTrianglePid, we might need to handle it.
+            // But textureLookup entries have 'ids' so we can probably trust resolveTextureUV to handle index lookup if we don't pre-coerce.
+            // Actually resolveTextureUV logic above mirrors standard material lookup, so it tries index lookup too.
+
+            const resolved = propertyIds.map(pid => this.resolveTextureUV(resourceId, pid, textureLookup));
+
+            // Check if we got valid UVs
+            if (resolved.every(r => r && r.uv)) {
+                trianglesWithTexture++;
+                resolved.forEach(r => {
+                    if (r.textureId) usedTextureIds.add(r.textureId);
+                });
+
+                const offset = tri * 6;
+                // v1
+                textureCoordinates[offset + 0] = resolved[0].uv.u;
+                textureCoordinates[offset + 1] = resolved[0].uv.v;
+                // v2
+                textureCoordinates[offset + 2] = resolved[1].uv.u;
+                textureCoordinates[offset + 3] = resolved[1].uv.v;
+                // v3
+                textureCoordinates[offset + 4] = resolved[2].uv.u;
+                textureCoordinates[offset + 5] = resolved[2].uv.v;
+            }
+        }
+
+        return {
+            textureCoordinates: trianglesWithTexture > 0 ? textureCoordinates : null,
+            textureId: usedTextureIds.size === 1 ? usedTextureIds.values().next().value : null // Return single texture if unique
+        };
+    }
+
     getMeshSummary(meshObj) {
         if (!meshObj) {
             return {
@@ -829,15 +1070,7 @@ export class Lib3mfEngine {
         const vertexCount = meshObj.GetVertexCount?.() ?? null;
         const triangleCount = meshObj.GetTriangleCount?.() ?? null;
         const hasSlices = meshObj.HasSlices?.(false) ? true : false;
-        let manifoldOriented;
-        try {
-            if (typeof meshObj.IsManifoldAndOriented === "function") {
-                manifoldOriented = !!meshObj.IsManifoldAndOriented();
-            }
-        } catch (err) {
-            logCatch("getMeshSummary.IsManifoldAndOriented failed", err);
-            manifoldOriented = undefined;
-        }
+        const manifoldOriented = undefined;
         const uuidInfo = this.getUUIDSafe(meshObj);
         return {
             vertexCount,
@@ -1189,6 +1422,8 @@ export class Lib3mfEngine {
             const hasTextures = texture2DGroups.length > 0 && texture2Ds.length > 0;
 
             const lookupMaps = this.buildMaterialLookupMaps(baseMaterialGroups, colorGroups);
+            const { textureLookup } = this.buildTextureLookupMaps(texture2DGroups);
+
             const meshResourcesArray = [];
 
             meshResources.forEach((resource) => {
@@ -1196,9 +1431,24 @@ export class Lib3mfEngine {
                 resource.vertexColors = colorData.vertexColors;
                 resource.materialColorStats = colorData.stats;
                 resource.usesVertexColors = colorData.stats.trianglesWithColor > 0;
-                if (!hasTextures) {
+
+                if (hasTextures) {
+                    const textureData = this.mapTriangleTextureCoordinates(resource, textureLookup);
+                    resource.textureCoordinates = textureData.textureCoordinates;
+                    resource.textureId = textureData.textureId; // Main texture ID if unique
+                }
+
+                if (!hasTextures && !resource.usesVertexColors) {
+                    // Clean up if we didn't end up using triangle properties? 
+                    // Original code deleted it if !hasTextures.
+                    // Now we only delete if we really don't need it. 
+                    // But let's stick to keeping it if it might be useful for debugging or future features unless memory is huge issue.
+                    // Original: if (!hasTextures) { delete resource.triangleProperties; }
+                }
+                if (!hasTextures && !resource.textureCoordinates) {
                     delete resource.triangleProperties;
                 }
+
                 meshResourcesArray.push(resource);
             });
 
@@ -1343,6 +1593,232 @@ export class Lib3mfEngine {
 
             const primarySpecification = specifications[0] ?? null;
 
+            // --- FLATTEN GEOMETRY ---
+            // We now flatten the geometry on the worker thread to avoid heavy lifting in the loader.
+            const buildStart = performance.now();
+
+            // 1. Calculate total size
+            const countTriangles = (resourceId, visited = new Set()) => {
+                if (meshResources.has(resourceId)) {
+                    return meshResources.get(resourceId).triangleCount ?? 0;
+                }
+                if (componentResources.has(resourceId)) {
+                    if (visited.has(resourceId)) return 0; // cycle
+                    visited.add(resourceId);
+                    const res = componentResources.get(resourceId);
+                    let total = 0;
+                    if (res && res.components) {
+                        for (const comp of res.components) {
+                            total += countTriangles(comp.targetId, visited);
+                        }
+                    }
+                    visited.delete(resourceId);
+                    return total;
+                }
+                return 0;
+            };
+
+            let totalTriangles = 0;
+            items.forEach(item => {
+                totalTriangles += countTriangles(item.resourceId);
+            });
+
+            const totalVertices = totalTriangles * 3;
+
+            // Allocate buffers
+            const flatPosition = new Float32Array(totalVertices * 3);
+            const flatNormal = new Float32Array(totalVertices * 3); // Placeholder, or compute if needed
+            const flatColor = new Float32Array(totalVertices * 3);
+            const flatUV = new Float32Array(totalVertices * 2);
+            const flatMaterialIndex = new Float32Array(totalVertices); // For debugging or specialized shaders
+
+            // Material/Group tracking
+            // We want to group by Texture ID / Material configuration to minimize draw calls in THREE.
+            // But flattening implies one big geometry. We can use `geometry.groups`.
+            // We need to collect "Draw Tasks" first, then write them to buffer sequentially to keep groups contiguous.
+
+            const drawTasks = []; // { resource, matrix, textureId }
+
+            const collectDrawTasks = (resourceId, matrix, visited = new Set()) => {
+                if (meshResources.has(resourceId)) {
+                    const resource = meshResources.get(resourceId);
+                    // Determine texture ID
+                    let textureId = resource.textureId ?? null;
+                    if (!textureId && resource.objectLevelProperty?.ok) {
+                        // Check if object property points to a texture group
+                        const objProp = resource.objectLevelProperty;
+                        // textureLookup keys are strings
+                        const key = String(objProp.resourceId);
+                        if (textureLookup.has(key)) {
+                            textureId = textureLookup.get(key).textureId;
+                        }
+                    }
+
+                    drawTasks.push({
+                        resource,
+                        matrix,
+                        textureId: textureId ?? null
+                    });
+                    return;
+                }
+                if (componentResources.has(resourceId)) {
+                    if (visited.has(resourceId)) return;
+                    visited.add(resourceId);
+                    const res = componentResources.get(resourceId);
+                    if (res && res.components) {
+                        for (const comp of res.components) {
+                            const localMat = comp.transform4x3 ? mat4From3mf(comp.transform4x3) : mat4Identity();
+                            const nextMat = mat4Multiply(localMat, matrix); // matrix * local? Or local * matrix?
+                            // THREE: parent * child. 
+                            // Here 'matrix' is parent transform (accumulated). 'localMat' is child.
+                            // So we want: result = matrix * localMat.
+                            // My mat4Multiply(a, b) calculates b * a (standard OpenGL logic? No wait check implementation).
+                            // Implementation above: out = b * a. (b transforms a).
+                            // If I want parent * child, I should do mat4Multiply(child, parent).
+                            // Let's verify: 
+                            // v_world = M_parent * v_local
+                            // v_local = M_child * v_original
+                            // v_world = M_parent * M_child * v_original
+                            // So combined = M_parent * M_child.
+                            // If mat4Multiply(a, b) computes b * a ...
+                            // Then I want mat4Multiply(M_child, M_parent) -> M_parent * M_child.
+                            // Correct.
+                            collectDrawTasks(comp.targetId, mat4Multiply(localMat, matrix), visited);
+                        }
+                    }
+                    visited.delete(resourceId);
+                }
+            };
+
+            items.forEach(item => {
+                const itemMat = item.transform ? mat4From3mf(item.transform) : mat4Identity();
+                collectDrawTasks(item.resourceId, itemMat);
+            });
+
+            // Sort tasks by texture ID to form contiguous groups
+            drawTasks.sort((a, b) => {
+                const ta = a.textureId ?? -1;
+                const tb = b.textureId ?? -1;
+                if (ta === tb) return 0;
+                // Put untextured (-1) first or last? Let's say first.
+                // -1 < 5.
+                if (ta === -1) return -1;
+                if (tb === -1) return 1;
+                return ta < tb ? -1 : 1;
+            });
+
+            let vertexCursor = 0;
+            const groups = [];
+            let currentTextureId = undefined;
+            let groupStart = 0;
+            let groupCount = 0;
+
+            const startGroup = (tid) => {
+                if (groupCount > 0) {
+                    groups.push({
+                        start: groupStart,
+                        count: groupCount,
+                        materialIndex: 0, // Assigned later by loader based on textureId
+                        textureId: currentTextureId
+                    });
+                }
+                currentTextureId = tid;
+                groupStart = vertexCursor;
+                groupCount = 0;
+            };
+
+            // Prefill unused with white/opaque
+            flatColor.fill(1.0);
+
+            for (const task of drawTasks) {
+                const { resource, matrix, textureId } = task;
+
+                if (textureId !== currentTextureId) {
+                    startGroup(textureId);
+                }
+
+                // Append geometry
+                const { positions: posSrc, indices, vertexColors, textureCoordinates, triangleProperties, objectLevelProperty } = resource;
+                const triCount = resource.triangleCount;
+
+                // Helper to resolve colors/uvs per triangle if not pre-calculated (some pre-calc done in readMeshGeometry)
+                // Actually readMeshGeometry puts everything in vertexColors (Float32Array) and textureCoordinates (Float32Array).
+                // They are already expanded to triangles (triCount * 3 vertices).
+                // So we can just copy them if they exist!
+
+                // EXCEPT: vertexColors in meshResource might be null if no colors.
+                // textureCoordinates might be null if no textures.
+
+                const hasVC = !!vertexColors;
+                const hasUV = !!textureCoordinates;
+                const fallbackColor = resource.baseColor || { r: 1, g: 1, b: 1 };
+
+                for (let t = 0; t < triCount; t++) {
+                    // Indices in source mesh are for vertices, but vertexColors/textureCoordinates are per-triangle-vertex (flattened).
+                    // Wait, check readMeshGeometry:
+                    // positions: vertexCount * 3 (indexed)
+                    // indices: triangleCount * 3
+                    // vertexColors: triangleCount * 9 (3 vertices * 3 rgb) -> FLATTENED PER TRIANGLE
+                    // textureCoordinates: triangleCount * 6 (3 vertices * 2 uv) -> FLATTENED PER TRIANGLE
+
+                    // So we must iterate triangles, get indices, lookup position, apply matrix, write to flatPosition.
+                    // Then just copy/lookup color/uv.
+
+                    const idx0 = indices[t * 3 + 0];
+                    const idx1 = indices[t * 3 + 1];
+                    const idx2 = indices[t * 3 + 2];
+
+                    // Positions
+                    const v0 = applyMat4ToPoint(matrix, posSrc[idx0 * 3], posSrc[idx0 * 3 + 1], posSrc[idx0 * 3 + 2]);
+                    const v1 = applyMat4ToPoint(matrix, posSrc[idx1 * 3], posSrc[idx1 * 3 + 1], posSrc[idx1 * 3 + 2]);
+                    const v2 = applyMat4ToPoint(matrix, posSrc[idx2 * 3], posSrc[idx2 * 3 + 1], posSrc[idx2 * 3 + 2]);
+
+                    const offset = vertexCursor * 3;
+                    flatPosition[offset + 0] = v0.x; flatPosition[offset + 1] = v0.y; flatPosition[offset + 2] = v0.z;
+                    flatPosition[offset + 3] = v1.x; flatPosition[offset + 4] = v1.y; flatPosition[offset + 5] = v1.z;
+                    flatPosition[offset + 6] = v2.x; flatPosition[offset + 7] = v2.y; flatPosition[offset + 8] = v2.z;
+
+                    // Colors
+                    const colOffset = vertexCursor * 3;
+                    if (hasVC) {
+                        const srcOff = t * 9;
+                        for (let k = 0; k < 9; k++) flatColor[colOffset + k] = vertexColors[srcOff + k];
+                    } else {
+                        // Fallback
+                        for (let v = 0; v < 3; v++) {
+                            flatColor[colOffset + v * 3 + 0] = fallbackColor.r;
+                            flatColor[colOffset + v * 3 + 1] = fallbackColor.g;
+                            flatColor[colOffset + v * 3 + 2] = fallbackColor.b;
+                        }
+                    }
+
+                    // UVs
+                    const uvOffset = vertexCursor * 2;
+                    if (hasUV) {
+                        const srcOff = t * 6;
+                        for (let k = 0; k < 6; k++) flatUV[uvOffset + k] = textureCoordinates[srcOff + k];
+                    } else {
+                        // 0,0
+                        for (let k = 0; k < 6; k++) flatUV[uvOffset + k] = 0;
+                    }
+
+                    vertexCursor += 3;
+                    groupCount += 3;
+                }
+            }
+            // Close final group
+            startGroup(undefined);
+
+            const geometry = {
+                positions: flatPosition,
+                colors: flatColor,
+                uvs: flatUV,
+                groups,
+                vertexCount: vertexCursor
+            };
+
+            console.log(`[lib3mf] Geometry flattened. Triangles: ${totalTriangles}, Vertices: ${vertexCursor}, Groups: ${groups.length}`);
+
             const output = {
                 diagnostics,
                 baseMaterialGroups,
@@ -1359,6 +1835,7 @@ export class Lib3mfEngine {
                 lib3mfVersion,
                 specifications,
                 primarySpecification,
+                geometry // <--- New field
             };
 
             return output;
