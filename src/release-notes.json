@@ -1,4 +1,9 @@
 {
+  "0.23.1": [
+    "Embed mode now supports transparent backgrounds via the transparent=1 flag",
+    "Quick embed loader simplified to a compact spinner for responsive iframes",
+    "Embed blog demo updated with multiple layouts and styling refinements"
+  ],
   "0.23.0": [
     "Added Quick Embed API with a minimal viewer mode for iframe-based integrations",
     "Embeds can load 3MFs via URL, base64 payload, or postMessage commands",

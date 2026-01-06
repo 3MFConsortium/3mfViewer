@@ -84,11 +84,14 @@ const parseEmbedConfig = () => {
       origin = null;
     }
   }
+  const transparentValue = params.get("transparent");
+  const transparent = transparentValue === "1" || transparentValue === "true";
   return {
     enabled: true,
     mode: normalized,
     src,
     origin,
+    transparent,
   };
 };
 
@@ -169,6 +172,7 @@ function ViewerApp() {
   const fps = useRafFps({ sample: 750 });
   const embedConfig = useMemo(() => parseEmbedConfig(), []);
   const isEmbedQuick = embedConfig.enabled && embedConfig.mode === "quick";
+  const isEmbedTransparent = isEmbedQuick && embedConfig.transparent;
   const hiddenMeshIds = useViewerStore((state) => state.selection.hiddenMeshIds);
   const toggleMeshVisibility = useViewerStore((state) => state.toggleMeshVisibility);
   const selectedNodeId = useViewerStore((state) => state.selection.selectedNodeId);
@@ -1043,9 +1047,25 @@ function ViewerApp() {
   // live background
   useEffect(() => {
     if (rendererRef.current) {
-      rendererRef.current.setClearColor(new THREE.Color(prefs.background), 1.0);
+      rendererRef.current.setClearColor(
+        new THREE.Color(prefs.background),
+        isEmbedTransparent ? 0.0 : 1.0
+      );
     }
-  }, [prefs.background]);
+  }, [prefs.background, isEmbedTransparent]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return undefined;
+    if (!isEmbedTransparent) return undefined;
+    const previousBody = document.body.style.background;
+    const previousHtml = document.documentElement.style.background;
+    document.body.style.background = "transparent";
+    document.documentElement.style.background = "transparent";
+    return () => {
+      document.body.style.background = previousBody;
+      document.documentElement.style.background = previousHtml;
+    };
+  }, [isEmbedTransparent]);
 
   // ---------- camera helpers ----------
   const DOLLY_STEP = 1.2;
@@ -1324,6 +1344,11 @@ function ViewerApp() {
   const helpAvailable = showScene && prefs.uiHelperMessage && !isEmbedQuick;
 
   const pageHeightClass = showScene || isEmbedQuick ? "h-screen" : "min-h-screen";
+  const pageBackgroundClass = isEmbedTransparent
+    ? "bg-transparent"
+    : dragActive
+    ? "bg-sky-50"
+    : "bg-slate-50";
 
 
   const helpItems = isCoarsePointer
@@ -1584,7 +1609,7 @@ function ViewerApp() {
 
   return (
     <div
-      className={`relative ${pageHeightClass} w-full overflow-x-hidden transition-colors duration-200 ${dragActive ? "bg-sky-50" : "bg-slate-50"}`}
+      className={`relative ${pageHeightClass} w-full overflow-x-hidden transition-colors duration-200 ${pageBackgroundClass}`}
     >
       {loadStatus === "loading" && (
         <div
@@ -1594,31 +1619,44 @@ function ViewerApp() {
         >
           <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px]" />
           <div className="absolute inset-0 flex items-center justify-center px-6">
-            <div className="pointer-events-none w-full max-w-lg rounded-3xl bg-white/95 px-6 py-5 text-center shadow-2xl ring-1 ring-slate-200">
-              <div className="text-sm font-semibold text-slate-800">{progressLabel}</div>
-              <div className="mt-1 text-xs text-slate-500">{progressSubLabel}</div>
-              {loadStage?.stage ? (
-                <div className="mt-1 text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
-                  Stage {loadStage.stage.replace(/-/g, " ")}
+            {isEmbedQuick ? (
+              <div className="pointer-events-none w-full max-w-[min(90vw,320px)] rounded-2xl bg-white/90 px-5 py-4 text-center shadow-xl ring-1 ring-slate-200">
+                <div className="mx-auto h-9 w-9 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700" />
+                <div className="mt-3 text-sm font-semibold text-slate-800">{progressLabel}</div>
+                <div className="mt-1 text-[0.7rem] text-slate-500">{progressSubLabel}</div>
+                {loadStage?.stage ? (
+                  <div className="mt-1 text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                    Stage {loadStage.stage.replace(/-/g, " ")}
+                  </div>
+                ) : null}
+              </div>
+            ) : (
+              <div className="pointer-events-none w-full max-w-lg rounded-3xl bg-white/95 px-6 py-5 text-center shadow-2xl ring-1 ring-slate-200">
+                <div className="text-sm font-semibold text-slate-800">{progressLabel}</div>
+                <div className="mt-1 text-xs text-slate-500">{progressSubLabel}</div>
+                {loadStage?.stage ? (
+                  <div className="mt-1 text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+                    Stage {loadStage.stage.replace(/-/g, " ")}
+                  </div>
+                ) : null}
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-sky-500 via-sky-600 to-violet-500 transition-all"
+                    style={{ width: `${progressPercent ?? 5}%` }}
+                  />
                 </div>
-              ) : null}
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-full rounded-full bg-gradient-to-r from-sky-500 via-sky-600 to-violet-500 transition-all"
-                  style={{ width: `${progressPercent ?? 5}%` }}
-                />
+                <div className="mt-2 text-[0.7rem] text-slate-500">
+                  {progressPercent !== null
+                    ? `${progressPercent}% • ${loadProgress?.triangles?.toLocaleString() ?? 0} / ${loadProgress?.totalTriangles?.toLocaleString() ?? 0} tri`
+                    : "Building geometry…"}
+                </div>
+                <div className="mt-1 text-[0.65rem] text-slate-400">
+                  Elapsed {elapsedLabel}
+                  {rateLabel ? ` • ${rateLabel}` : ""}
+                  {lastUpdateLabel ? ` • Last update ${lastUpdateLabel} ago` : ""}
+                </div>
               </div>
-              <div className="mt-2 text-[0.7rem] text-slate-500">
-                {progressPercent !== null
-                  ? `${progressPercent}% • ${loadProgress?.triangles?.toLocaleString() ?? 0} / ${loadProgress?.totalTriangles?.toLocaleString() ?? 0} tri`
-                  : "Building geometry…"}
-              </div>
-              <div className="mt-1 text-[0.65rem] text-slate-400">
-                Elapsed {elapsedLabel}
-                {rateLabel ? ` • ${rateLabel}` : ""}
-                {lastUpdateLabel ? ` • Last update ${lastUpdateLabel} ago` : ""}
-              </div>
-            </div>
+            )}
           </div>
         </div>
       )}
@@ -1686,6 +1724,7 @@ function ViewerApp() {
           sceneMetadata={sceneData?.metadata}
           onUpdateSpecifications={checkSpecifications}
           hideSceneTree={isEmbedQuick}
+          transparentBackground={isEmbedTransparent}
         />
 
         {helpAvailable && helpCardOpen && !isEmbedQuick && (

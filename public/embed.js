@@ -29,6 +29,7 @@
     url.searchParams.set("embed", "quick");
     if (options.src) url.searchParams.set("src", options.src);
     if (options.origin) url.searchParams.set("origin", options.origin);
+    if (options.transparent) url.searchParams.set("transparent", "1");
     return url.toString();
   };
 

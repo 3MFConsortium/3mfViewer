@@ -25,6 +25,7 @@ export function ViewerScene({
   sceneMetadata,
   onUpdateSpecifications,
   hideSceneTree = false,
+  transparentBackground = false,
 }) {
   const prefs = useViewerStore((state) => state.prefs);
   const sceneObject = useViewerStore((state) => state.viewer.sceneObject);
@@ -47,12 +48,12 @@ export function ViewerScene({
         <Canvas
           shadows={prefs.shadows}
           camera={{ fov: 50, position: initialCamPos.current.toArray() }}
-          gl={{ preserveDrawingBuffer: true, antialias: true }}
+          gl={{ preserveDrawingBuffer: true, antialias: true, alpha: transparentBackground }}
           onCreated={({ camera, gl }) => {
             cameraRef.current = camera;
             rendererRef.current = gl;
             setCanvasElement(gl.domElement);
-            gl.setClearColor(new THREE.Color(prefs.background), 1.0);
+            gl.setClearColor(new THREE.Color(prefs.background), transparentBackground ? 0.0 : 1.0);
             setTimeout(() => {
               if (controlsRef.current) {
                 initialTarget.current.copy(controlsRef.current.target);

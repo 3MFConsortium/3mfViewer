@@ -125,8 +125,8 @@
         <!-- Entry 3: Complex layout (Text Right, Tall Viewer Left) -->
         <article class="grid md:grid-cols-12 gap-8 items-start">
             <!-- Viewer (Spans 5 cols) -->
-            <div class="md:col-span-5 tech-card p-2 rounded-xl border border-slate-200">
-                <div class="relative w-full h-[500px] bg-slate-50 rounded-lg overflow-hidden border border-slate-100">
+            <div class="md:col-span-5">
+                <div class="relative w-full h-[500px] overflow-hidden">
                     <div id="viewer-helix" class="w-full h-full"></div>
                 </div>
             </div>
@@ -213,10 +213,25 @@
 
     <!-- Footer -->
     <footer class="border-t border-slate-200 bg-white py-12 mt-auto">
-        <div class="max-w-5xl mx-auto px-6 text-center">
+        <div class="max-w-5xl mx-auto px-6 flex flex-col items-center gap-4 text-center">
             <p class="text-slate-500 text-sm font-medium">
                 Created by 3MF Consortium
             </p>
+            <label class="text-xs font-mono uppercase tracking-[0.2em] text-slate-500">
+                Background tone
+                <select id="bg-tone" class="mt-2 w-64 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+                    <option value="#f8fafc">Cloud</option>
+                    <option value="#f5f3ff">Lavender Mist</option>
+                    <option value="#eef2ff">Iris Wash</option>
+                    <option value="#ecfeff">Glacier</option>
+                    <option value="#f0f9ff">Sky Studio</option>
+                    <option value="#f0fdf4">Mint Foam</option>
+                    <option value="#fff7ed">Apricot Light</option>
+                    <option value="#fef3c7">Soft Saffron</option>
+                    <option value="#fdf2f8">Rose Milk</option>
+                    <option value="#f1f5f9">Slate Haze</option>
+                </select>
+            </label>
         </div>
     </footer>
 
@@ -230,11 +245,21 @@
             { id: "viewer-properties", src: "/data/PyramidWithProperties.3mf" }
         ];
 
+        const toneSelect = document.getElementById("bg-tone");
+        const applyTone = (value) => {
+            document.body.style.backgroundColor = value;
+        };
+        if (toneSelect) {
+            toneSelect.addEventListener("change", (event) => applyTone(event.target.value));
+            applyTone(toneSelect.value);
+        }
+
         models.forEach((model) => {
             ThreeMFViewerEmbed.create({
                 container: `#${model.id}`,
                 height: "100%",
-                src: model.src
+                src: model.src,
+                transparent: model.id === "viewer-helix"
             });
         });
     </script>
