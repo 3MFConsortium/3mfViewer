@@ -1,4 +1,9 @@
 {
+  "0.24.0": [
+    "Uniform lighting refresh with ambient + hemisphere + rim light controls in preferences",
+    "Directional light and shadow toggles removed for a simpler lighting model",
+    "Embed preferences isolated from localStorage to avoid cross-session bleed"
+  ],
   "0.23.1": [
     "Embed mode now supports transparent backgrounds via the transparent=1 flag",
     "Quick embed loader simplified to a compact spinner for responsive iframes",

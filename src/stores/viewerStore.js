@@ -2,10 +2,12 @@ import { create } from "zustand";
 
 export const DEFAULT_PREFS = {
   background: "#f8fafc",
-  ambient: 0.8,
-  directional: 1.5,
-  dirColor: "#ffffff",
-  shadows: false,
+  ambient: 0.85,
+  hemiIntensity: 0.9,
+  hemiSkyColor: "#ffffff",
+  hemiGroundColor: "#a7b1c2",
+  rimIntensity: 0.25,
+  rimColor: "#ffffff",
   ground: true,
   grid: false,
   showStats: true,
@@ -20,8 +22,19 @@ export const DEFAULT_PREFS = {
 
 const PREFS_STORAGE_KEY = "3mfViewer:prefs";
 
+const isEmbedMode = () => {
+  if (typeof window === "undefined") return false;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.has("embed");
+  } catch {
+    return false;
+  }
+};
+
 const loadPrefs = () => {
   if (typeof window === "undefined") return { ...DEFAULT_PREFS };
+  if (isEmbedMode()) return { ...DEFAULT_PREFS };
   try {
     const raw = window.localStorage.getItem(PREFS_STORAGE_KEY);
     if (!raw) return { ...DEFAULT_PREFS };
@@ -35,6 +48,7 @@ const loadPrefs = () => {
 
 const savePrefs = (prefs) => {
   if (typeof window === "undefined") return;
+  if (isEmbedMode()) return;
   try {
     window.localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(prefs));
   } catch {

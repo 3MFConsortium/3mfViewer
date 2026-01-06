@@ -38,15 +38,6 @@ export function ScenePreferences({ prefs, onChange }) {
                 className="h-9 w-12 cursor-pointer"
               />
             </label>
-            <label className="flex items-center gap-3">
-              <span className="w-40 text-sm text-slate-600">Directional light color</span>
-              <input
-                type="color"
-                value={prefs.dirColor}
-                onChange={(e) => set("dirColor", e.target.value)}
-                className="h-9 w-12 cursor-pointer"
-              />
-            </label>
           </div>
         );
       case "lighting":
@@ -65,28 +56,58 @@ export function ScenePreferences({ prefs, onChange }) {
               />
               <span className="text-xs tabular-nums w-10">{prefs.ambient.toFixed(2)}</span>
             </label>
-
             <label className="flex items-center gap-3">
-              <span className="w-40 text-sm text-slate-600">Directional intensity</span>
+              <span className="w-40 text-sm text-slate-600">Hemisphere intensity</span>
               <input
                 type="range"
                 min="0"
-                max="3"
+                max="2"
                 step="0.05"
-                value={prefs.directional}
-                onChange={(e) => set("directional", +e.target.value)}
+                value={prefs.hemiIntensity}
+                onChange={(e) => set("hemiIntensity", +e.target.value)}
                 className="w-44"
               />
-              <span className="text-xs tabular-nums w-10">{prefs.directional.toFixed(2)}</span>
+              <span className="text-xs tabular-nums w-10">{prefs.hemiIntensity.toFixed(2)}</span>
             </label>
-
-            <label className="flex items-center gap-2">
+            <label className="flex items-center gap-3">
+              <span className="w-40 text-sm text-slate-600">Hemisphere sky</span>
               <input
-                type="checkbox"
-                checked={prefs.shadows}
-                onChange={(e) => set("shadows", e.target.checked)}
+                type="color"
+                value={prefs.hemiSkyColor}
+                onChange={(e) => set("hemiSkyColor", e.target.value)}
+                className="h-9 w-12 cursor-pointer"
               />
-              <span className="text-sm text-slate-700">Shadows</span>
+            </label>
+            <label className="flex items-center gap-3">
+              <span className="w-40 text-sm text-slate-600">Hemisphere ground</span>
+              <input
+                type="color"
+                value={prefs.hemiGroundColor}
+                onChange={(e) => set("hemiGroundColor", e.target.value)}
+                className="h-9 w-12 cursor-pointer"
+              />
+            </label>
+            <label className="flex items-center gap-3">
+              <span className="w-40 text-sm text-slate-600">Rim intensity</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={prefs.rimIntensity}
+                onChange={(e) => set("rimIntensity", +e.target.value)}
+                className="w-44"
+              />
+              <span className="text-xs tabular-nums w-10">{prefs.rimIntensity.toFixed(2)}</span>
+            </label>
+            <label className="flex items-center gap-3">
+              <span className="w-40 text-sm text-slate-600">Rim color</span>
+              <input
+                type="color"
+                value={prefs.rimColor}
+                onChange={(e) => set("rimColor", e.target.value)}
+                className="h-9 w-12 cursor-pointer"
+              />
             </label>
 
             <label className="flex items-center gap-2">
@@ -115,7 +136,13 @@ export function ScenePreferences({ prefs, onChange }) {
               <input
                 type="checkbox"
                 checked={prefs.wireframe}
-                onChange={(e) => set("wireframe", e.target.checked)}
+                onChange={(e) =>
+                  onChange({
+                    ...prefs,
+                    wireframe: e.target.checked,
+                    edges: e.target.checked ? false : prefs.edges,
+                  })
+                }
               />
               <span className="text-sm text-slate-700">Wireframe</span>
             </label>
@@ -123,7 +150,13 @@ export function ScenePreferences({ prefs, onChange }) {
               <input
                 type="checkbox"
                 checked={prefs.edges}
-                onChange={(e) => set("edges", e.target.checked)}
+                onChange={(e) =>
+                  onChange({
+                    ...prefs,
+                    edges: e.target.checked,
+                    wireframe: e.target.checked ? false : prefs.wireframe,
+                  })
+                }
               />
               <span className="text-sm text-slate-700">Edge overlay</span>
             </label>

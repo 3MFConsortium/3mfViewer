@@ -105,8 +105,12 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
       const edgesHelper = child.userData.edgesHelper;
       if (showEdges) {
         if (!edgesHelper) {
-          const geometry = new THREE.EdgesGeometry(child.geometry);
-          const material = new THREE.LineBasicMaterial({ color: edgeColor });
+          const geometry = new THREE.EdgesGeometry(child.geometry, 30);
+          const material = new THREE.LineBasicMaterial({
+            color: edgeColor,
+            transparent: true,
+            opacity: 0.55,
+          });
           const helper = new THREE.LineSegments(geometry, material);
           helper.renderOrder = 1;
           child.add(helper);

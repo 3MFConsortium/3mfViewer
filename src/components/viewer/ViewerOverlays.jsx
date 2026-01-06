@@ -53,10 +53,8 @@ export function ViewerOverlays({
       onScreenshot={controls.onScreenshot}
       gridOn={controls.gridOn}
       statsOn={controls.statsOn}
-      shadowsOn={controls.shadowsOn}
       onToggleGrid={controls.onToggleGrid}
       onToggleStats={controls.onToggleStats}
-      onToggleShadows={controls.onToggleShadows}
       wireframeOn={controls.wireframeOn}
       edgesOn={controls.edgesOn}
       onToggleWireframe={controls.onToggleWireframe}

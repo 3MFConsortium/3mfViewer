@@ -945,10 +945,6 @@ function ViewerApp() {
     setPrefs((p) => ({ ...p, showStats: !p.showStats }));
   }, [setPrefs]);
 
-  const handleToggleShadows = useCallback(() => {
-    setPrefs((p) => ({ ...p, shadows: !p.shadows }));
-  }, [setPrefs]);
-
   const handleToggleWireframe = useCallback(
     (enabled) => {
       setPrefs((p) => ({ ...p, wireframe: enabled, edges: enabled ? false : p.edges }));
@@ -1379,16 +1375,14 @@ function ViewerApp() {
     gridOn: prefs.grid,
     groundOn: prefs.ground,
     statsOn: prefs.showStats,
-    shadowsOn: prefs.shadows,
     onToggleGrid: () => setPrefs(p => ({ ...p, grid: !p.grid })),
     onToggleGround: () => setPrefs(p => ({ ...p, ground: !p.ground })),
     onToggleStats: () => setPrefs(p => ({ ...p, showStats: !p.showStats })),
-    onToggleShadows: () => setPrefs(p => ({ ...p, shadows: !p.shadows })),
     wireframeOn: prefs.wireframe,
     edgesOn: prefs.edges,
-    onToggleWireframe: () => setPrefs(p => ({ ...p, wireframe: !p.wireframe })),
-    onToggleEdges: () => setPrefs(p => ({ ...p, edges: !p.edges })),
-  }), [handleZoomIn, handleZoomOut, handleFit, handleResetView, handleScreenshot, prefs, setPrefs]);
+    onToggleWireframe: handleToggleWireframe,
+    onToggleEdges: handleToggleEdges,
+  }), [handleZoomIn, handleZoomOut, handleFit, handleResetView, handleScreenshot, handleToggleWireframe, handleToggleEdges, prefs, setPrefs]);
 
   const heroHeading = !isCoarsePointer && dragActive
     ? "Release to load"
@@ -1720,7 +1714,7 @@ function ViewerApp() {
           groundY={groundY}
           gridDivisions={gridDivisions}
           treeItems={treeItems}
-          onSelectFile={() => fileInputRef.current?.click()}
+          onSelectFile={handleLoadFile}
           sceneMetadata={sceneData?.metadata}
           onUpdateSpecifications={checkSpecifications}
           hideSceneTree={isEmbedQuick}

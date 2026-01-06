@@ -46,7 +46,6 @@ export function ViewerScene({
     <>
       {showScene && (
         <Canvas
-          shadows={prefs.shadows}
           camera={{ fov: 50, position: initialCamPos.current.toArray() }}
           gl={{ preserveDrawingBuffer: true, antialias: true, alpha: transparentBackground }}
           onCreated={({ camera, gl }) => {
@@ -69,11 +68,15 @@ export function ViewerScene({
           />
 
           <ambientLight intensity={prefs.ambient} />
+          <hemisphereLight
+            intensity={prefs.hemiIntensity}
+            color={prefs.hemiSkyColor}
+            groundColor={prefs.hemiGroundColor}
+          />
           <directionalLight
-            position={[5, 8, 6]}
-            intensity={prefs.directional}
-            color={prefs.dirColor}
-            castShadow={prefs.shadows}
+            intensity={prefs.rimIntensity}
+            color={prefs.rimColor}
+            position={[-6, 6, -6]}
           />
 
           <SceneContent
@@ -88,9 +91,9 @@ export function ViewerScene({
           />
 
           {prefs.ground && (
-            <mesh rotation-x={-Math.PI / 2} position={[0, groundY, 0]} receiveShadow>
+            <mesh rotation-x={-Math.PI / 2} position={[0, groundY, 0]}>
               <planeGeometry args={[10000, 10000]} />
-              <shadowMaterial opacity={prefs.shadows ? 0.2 : 0.0} />
+              <shadowMaterial opacity={0.0} />
             </mesh>
           )}
           {prefs.grid && (

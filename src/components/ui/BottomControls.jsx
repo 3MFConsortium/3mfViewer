@@ -7,7 +7,6 @@ import {
   IconReset,
   IconGrid,
   IconStats,
-  IconShadows,
   IconWireframe,
   IconWireframeOverlay,
 } from "./Icons.jsx";
@@ -43,10 +42,8 @@ export function BottomControls({
   onScreenshot,
   gridOn,
   statsOn,
-  shadowsOn,
   onToggleGrid,
   onToggleStats,
-  onToggleShadows,
   wireframeOn,
   edgesOn,
   onToggleWireframe,
@@ -84,7 +81,6 @@ export function BottomControls({
         {/* Toggles */}
         <Btn title="Grid helper"   onClick={onToggleGrid}   active={gridOn}><IconGrid /></Btn>
         <Btn title="Stats overlay" onClick={onToggleStats}  active={statsOn}><IconStats /></Btn>
-        <Btn title="Shadows"       onClick={onToggleShadows} active={shadowsOn}><IconShadows /></Btn>
 
         <Divider />
 
