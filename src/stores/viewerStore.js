@@ -15,6 +15,7 @@ export const DEFAULT_PREFS = {
   uiSceneTree: true,
   uiBottomControls: true,
   uiHelperMessage: true,
+  sliceIndex: -1,
 };
 
 const PREFS_STORAGE_KEY = "3mfViewer:prefs";

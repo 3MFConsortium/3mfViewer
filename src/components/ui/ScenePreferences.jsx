@@ -12,7 +12,17 @@ const tabs = [
 export function ScenePreferences({ prefs, onChange }) {
   const activeTab = useViewerStore((state) => state.ui.scenePrefsActiveTab);
   const setActiveTab = useViewerStore((state) => state.setScenePrefsActiveTab);
+  const sliceStacks = useViewerStore((state) => state.viewer.sceneData?.sliceStacks ?? []);
   const set = (key, value) => onChange({ ...prefs, [key]: value });
+  const sliceMax = React.useMemo(() => {
+    if (!sliceStacks.length) return -1;
+    const max = sliceStacks.reduce((acc, stack) => {
+      const count = Number(stack?.sliceCount ?? 0);
+      return Number.isFinite(count) ? Math.max(acc, count) : acc;
+    }, 0);
+    return max > 0 ? max - 1 : -1;
+  }, [sliceStacks]);
+  const sliceViewEnabled = prefs.sliceIndex >= 0;
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -134,6 +144,36 @@ export function ScenePreferences({ prefs, onChange }) {
               />
               <span className="text-sm text-slate-700">Show stats overlay</span>
             </label>
+            {sliceMax >= 0 && (
+              <>
+                <label className="flex items-center gap-2 sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={sliceViewEnabled}
+                    onChange={(e) =>
+                      set("sliceIndex", e.target.checked ? 0 : -1)
+                    }
+                  />
+                  <span className="text-sm text-slate-700">Enable slice view</span>
+                </label>
+                <label className="flex items-center gap-3 sm:col-span-2">
+                  <span className="w-40 text-sm text-slate-600">Slice index</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max={Math.max(sliceMax, 0)}
+                    step="1"
+                    disabled={!sliceViewEnabled}
+                    value={sliceViewEnabled ? Math.min(Math.max(prefs.sliceIndex, 0), sliceMax) : 0}
+                    onChange={(e) => set("sliceIndex", Number(e.target.value))}
+                    className="w-64"
+                  />
+                  <span className="text-xs tabular-nums w-16 text-right">
+                    {sliceViewEnabled ? `${Math.min(Math.max(prefs.sliceIndex, 0), sliceMax)} / ${sliceMax}` : "Off"}
+                  </span>
+                </label>
+              </>
+            )}
           </div>
         );
       case "interface":

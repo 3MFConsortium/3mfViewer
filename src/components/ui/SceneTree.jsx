@@ -260,6 +260,12 @@ export function SceneTree({
     if (!Array.isArray(metadata?.colorGroups)) return [];
     return metadata.colorGroups;
   }, [metadata?.colorGroups]);
+
+  const sliceStacks = useMemo(() => {
+    if (!Array.isArray(metadata?.sliceStacks)) return [];
+    return metadata.sliceStacks;
+  }, [metadata?.sliceStacks]);
+
   const baseMaterialGroupMap = useMemo(() => {
     const map = new Map();
     baseMaterialGroups.forEach((group) => {
@@ -373,6 +379,9 @@ export function SceneTree({
         }
         if (typeof metadata.counts?.components === "number") {
           rows.push({ label: "Component objects", value: metadata.counts.components.toLocaleString(), numeric: true });
+        }
+        if (typeof metadata.counts?.sliceStacks === "number") {
+          rows.push({ label: "Slice stacks", value: metadata.counts.sliceStacks.toLocaleString(), numeric: true });
         }
         return rows;
       })()
@@ -511,6 +520,88 @@ export function SceneTree({
                 ) : null}
               </li>
             ))}
+          </ul>
+        </section>
+      ) : null}
+
+      {sliceStacks.length ? (
+        <section className="space-y-2">
+          <div className="text-sm font-semibold text-slate-800">Slice stacks</div>
+          <ul className="space-y-2">
+            {sliceStacks.map((stack, stackIdx) => {
+              const zRange = (() => {
+                if (!Array.isArray(stack.slices) || !stack.slices.length) return null;
+                const zValues = stack.slices
+                  .map((s) => s.zTop)
+                  .filter((z) => Number.isFinite(z));
+                if (!zValues.length) return null;
+                const minZ = Math.min(...zValues);
+                const maxZ = Math.max(...zValues);
+                return { min: minZ, max: maxZ };
+              })();
+              const totalVertices = Array.isArray(stack.slices)
+                ? stack.slices.reduce((sum, s) => sum + (s.vertexCount ?? 0), 0)
+                : 0;
+              const totalPolygons = Array.isArray(stack.slices)
+                ? stack.slices.reduce((sum, s) => sum + (s.polygonCount ?? 0), 0)
+                : 0;
+
+              return (
+                <li
+                  key={`slice-stack-${stack.resourceId ?? stackIdx}`}
+                  className="rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm"
+                >
+                  <div className="flex justify-between text-[0.72rem] text-slate-500">
+                    <span>Stack {stack.resourceId ?? stackIdx + 1}</span>
+                    <span>
+                      {stack.sliceCount ?? stack.slices?.length ?? 0} slice
+                      {(stack.sliceCount ?? stack.slices?.length ?? 0) === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  {stack.uuid ? (
+                    <div className="mt-2 font-mono text-[0.68rem] leading-snug text-slate-500 break-all">
+                      UUID: {stack.uuid}
+                    </div>
+                  ) : null}
+                  <div className="mt-2 space-y-1">
+                    {stack.bottomZ !== null && stack.bottomZ !== undefined && (
+                      <div className="flex justify-between text-[0.72rem]">
+                        <span className="text-slate-500">Bottom Z</span>
+                        <span className="tabular-nums text-slate-700">{stack.bottomZ}</span>
+                      </div>
+                    )}
+                    {zRange && (
+                      <div className="flex justify-between text-[0.72rem]">
+                        <span className="text-slate-500">Z range</span>
+                        <span className="tabular-nums text-slate-700">
+                          {zRange.min.toFixed(3)} — {zRange.max.toFixed(3)}
+                        </span>
+                      </div>
+                    )}
+                    {totalVertices > 0 && (
+                      <div className="flex justify-between text-[0.72rem]">
+                        <span className="text-slate-500">Total vertices</span>
+                        <span className="tabular-nums text-slate-700">{totalVertices.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {totalPolygons > 0 && (
+                      <div className="flex justify-between text-[0.72rem]">
+                        <span className="text-slate-500">Total polygons</span>
+                        <span className="tabular-nums text-slate-700">{totalPolygons.toLocaleString()}</span>
+                      </div>
+                    )}
+                    {stack.ownPath && (
+                      <div className="flex justify-between text-[0.72rem]">
+                        <span className="text-slate-500">Path</span>
+                        <span className="font-mono text-[0.68rem] text-slate-700 truncate max-w-[60%]" title={stack.ownPath}>
+                          {stack.ownPath}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         </section>
       ) : null}
@@ -892,7 +983,7 @@ export function SceneTree({
           ? groupInfo.propertyIdsWithColors.map((pid) => String(pid))
           : []
       );
-      const propertyIds = Array.isArray(groupInfo.propertyIds)
+      const rawPropertyIds = Array.isArray(groupInfo.propertyIds)
         ? Array.from(
             new Set(
               groupInfo.propertyIds.map((pid) =>
@@ -901,6 +992,11 @@ export function SceneTree({
             )
           )
         : [];
+      const propertyIdTotal = rawPropertyIds.length;
+      const isMaterialGroup = groupType === "BaseMaterialGroup" || groupType === "ColorGroup";
+      const maxPropertyPreview = 200;
+      const propertyIds = isMaterialGroup ? rawPropertyIds.slice(0, maxPropertyPreview) : [];
+      const propertyLimitReached = isMaterialGroup && propertyIdTotal > maxPropertyPreview;
       const properties = propertyIds.map((pid) => {
         const pidKey = String(pid);
         const matchEntry = (list) => {
@@ -946,6 +1042,8 @@ export function SceneTree({
         triangles: total,
         withColors: colored,
         properties,
+        propertyIdTotal,
+        propertyLimitReached,
       };
     });
     entries.sort((a, b) => {
@@ -961,13 +1059,55 @@ export function SceneTree({
     return entries.filter((entry) => entry.triangles > 0);
   }, [selectedInfo, baseMaterialGroupMap, colorGroupMap]);
 
+  const sliceStackDetails = useMemo(() => {
+    const diag = selectedInfo?.meta?.meshDiagnostics;
+    if (!diag?.hasSlices) return null;
+    const stackId = diag.sliceStackId ?? null;
+    let matchedStack = null;
+    if (Array.isArray(sliceStacks) && sliceStacks.length) {
+      if (stackId !== null && stackId !== undefined) {
+        const stackIdKey = String(stackId);
+        matchedStack =
+          sliceStacks.find((stack) => {
+            if (!stack) return false;
+            const keys = [stack.resourceId, stack.uniqueResourceId].filter(
+              (value) => value !== undefined && value !== null
+            );
+            return keys.some((value) => String(value) === stackIdKey);
+          }) ?? null;
+      } else if (sliceStacks.length === 1) {
+        matchedStack = sliceStacks[0];
+      }
+    }
+    const slices = Array.isArray(matchedStack?.slices) ? matchedStack.slices : [];
+    const zValues = slices
+      .map((slice) => slice?.zTop)
+      .filter((value) => Number.isFinite(value));
+    const zRange = zValues.length
+      ? { min: Math.min(...zValues), max: Math.max(...zValues) }
+      : null;
+    const totalVertices = slices.reduce((sum, slice) => sum + (slice?.vertexCount ?? 0), 0);
+    const totalPolygons = slices.reduce((sum, slice) => sum + (slice?.polygonCount ?? 0), 0);
+    const references = Array.isArray(matchedStack?.references) ? matchedStack.references : [];
+    return {
+      diag,
+      stack: matchedStack,
+      zRange,
+      totalVertices,
+      totalPolygons,
+      references,
+    };
+  }, [selectedInfo?.meta?.meshDiagnostics, sliceStacks]);
+
   const selectedMeta = selectedInfo?.meta || null;
   const hasMetadataEntries = Array.isArray(selectedMeta?.metadataEntries) && selectedMeta.metadataEntries.length > 0;
   const hasComponentsList = Array.isArray(selectedMeta?.components) && selectedMeta.components.length > 0;
   const hasTransformsList = Array.isArray(selectedMeta?.transforms) && selectedMeta.transforms.length > 0;
   const hasUuidInfo = Boolean(selectedMeta?.uuid || selectedMeta?.buildItemUuid || selectedMeta?.hasUUID !== undefined);
   const hasMaterialUsage = materialUsageDetails.length > 0;
-  const modalHasContent = hasMaterialUsage || hasMetadataEntries || hasComponentsList || hasTransformsList || hasUuidInfo;
+  const hasSliceStackDetails = Boolean(sliceStackDetails);
+  const modalHasContent =
+    hasMaterialUsage || hasMetadataEntries || hasComponentsList || hasTransformsList || hasUuidInfo || hasSliceStackDetails;
 
   useEffect(() => {
     if (!modalHasContent && materialModalOpen) {
@@ -1149,12 +1289,144 @@ export function SceneTree({
                         </li>
                       ))}
                     </ul>
+                  ) : entry.propertyIdTotal ? (
+                    <div className="mt-3 text-[0.66rem] text-slate-400">
+                      {entry.propertyLimitReached
+                        ? `Showing first ${entry.properties.length} of ${entry.propertyIdTotal} property IDs.`
+                        : `${entry.propertyIdTotal} property ID${entry.propertyIdTotal === 1 ? "" : "s"} reported.`}
+                    </div>
                   ) : (
                     <div className="mt-3 text-[0.66rem] text-slate-400">No property IDs reported.</div>
                   )}
                 </article>
               ))}
             </div>
+          </section>
+        ) : null}
+
+        {hasSliceStackDetails ? (
+          <section className="space-y-2">
+            <header className="text-[0.75rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+              Slice stack
+            </header>
+            <ul className="space-y-1">
+              {(sliceStackDetails.stack?.resourceId ?? sliceStackDetails.diag?.sliceStackId) !== null &&
+              (sliceStackDetails.stack?.resourceId ?? sliceStackDetails.diag?.sliceStackId) !== undefined ? (
+                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-slate-600">Resource ID</div>
+                  <div className="mt-1 text-[0.7rem] text-slate-700 tabular-nums">
+                    {sliceStackDetails.stack?.resourceId ?? sliceStackDetails.diag?.sliceStackId}
+                  </div>
+                </li>
+              ) : null}
+              {sliceStackDetails.stack?.uniqueResourceId !== null &&
+              sliceStackDetails.stack?.uniqueResourceId !== undefined ? (
+                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-slate-600">Unique resource ID</div>
+                  <div className="mt-1 text-[0.7rem] text-slate-700 tabular-nums">
+                    {sliceStackDetails.stack.uniqueResourceId}
+                  </div>
+                </li>
+              ) : null}
+              {(sliceStackDetails.stack?.uuid || sliceStackDetails.diag?.sliceStackUuid) ? (
+                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-slate-600">Slice stack UUID</div>
+                  <div className="mt-1 break-all font-mono text-[0.66rem] leading-snug text-slate-500">
+                    {sliceStackDetails.stack?.uuid ?? sliceStackDetails.diag?.sliceStackUuid}
+                  </div>
+                </li>
+              ) : null}
+              {(sliceStackDetails.stack?.hasUUID ?? sliceStackDetails.diag?.sliceStackHasUUID) !== undefined ? (
+                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-slate-600">UUID present</div>
+                  <div className="mt-1 text-[0.7rem] text-slate-700">
+                    {(sliceStackDetails.stack?.hasUUID ?? sliceStackDetails.diag?.sliceStackHasUUID) ? "Yes" : "No"}
+                  </div>
+                </li>
+              ) : null}
+              {(sliceStackDetails.stack?.sliceCount ?? sliceStackDetails.diag?.sliceCount) ? (
+                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-slate-600">Slice count</div>
+                  <div className="mt-1 text-[0.7rem] text-slate-700 tabular-nums">
+                    {(sliceStackDetails.stack?.sliceCount ?? sliceStackDetails.diag?.sliceCount).toLocaleString()}
+                  </div>
+                </li>
+              ) : null}
+              {(sliceStackDetails.stack?.bottomZ ?? sliceStackDetails.diag?.sliceBottomZ) !== null &&
+              (sliceStackDetails.stack?.bottomZ ?? sliceStackDetails.diag?.sliceBottomZ) !== undefined ? (
+                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-slate-600">Bottom Z</div>
+                  <div className="mt-1 text-[0.7rem] text-slate-700 tabular-nums">
+                    {sliceStackDetails.stack?.bottomZ ?? sliceStackDetails.diag?.sliceBottomZ}
+                  </div>
+                </li>
+              ) : null}
+              {sliceStackDetails.zRange ? (
+                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-slate-600">Z range</div>
+                  <div className="mt-1 text-[0.7rem] text-slate-700 tabular-nums">
+                    {sliceStackDetails.zRange.min.toFixed(3)} — {sliceStackDetails.zRange.max.toFixed(3)}
+                  </div>
+                </li>
+              ) : null}
+              {sliceStackDetails.diag?.slicesMeshResolution?.name ? (
+                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-slate-600">Slice resolution</div>
+                  <div className="mt-1 text-[0.7rem] text-slate-700">
+                    {sliceStackDetails.diag.slicesMeshResolution.name}
+                  </div>
+                </li>
+              ) : null}
+              {sliceStackDetails.totalVertices > 0 ? (
+                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-slate-600">Total vertices</div>
+                  <div className="mt-1 text-[0.7rem] text-slate-700 tabular-nums">
+                    {sliceStackDetails.totalVertices.toLocaleString()}
+                  </div>
+                </li>
+              ) : null}
+              {sliceStackDetails.totalPolygons > 0 ? (
+                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-slate-600">Total polygons</div>
+                  <div className="mt-1 text-[0.7rem] text-slate-700 tabular-nums">
+                    {sliceStackDetails.totalPolygons.toLocaleString()}
+                  </div>
+                </li>
+              ) : null}
+              {sliceStackDetails.stack?.ownPath ? (
+                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-slate-600">Path</div>
+                  <div className="mt-1 truncate font-mono text-[0.66rem] leading-snug text-slate-500">
+                    {sliceStackDetails.stack.ownPath}
+                  </div>
+                </li>
+              ) : null}
+            </ul>
+            {sliceStackDetails.references.length ? (
+              <div className="space-y-1">
+                <div className="text-[0.7rem] font-semibold text-slate-600">References</div>
+                <ul className="space-y-1">
+                  {sliceStackDetails.references.map((ref, index) => (
+                    <li
+                      key={`slice-ref-${ref.resourceId ?? "none"}-${index}`}
+                      className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2"
+                    >
+                      <div className="flex justify-between text-[0.7rem] text-slate-600">
+                        <span>Resource {ref.resourceId ?? "?"}</span>
+                        {ref.uniqueResourceId !== null && ref.uniqueResourceId !== undefined ? (
+                          <span>Unique {ref.uniqueResourceId}</span>
+                        ) : null}
+                      </div>
+                      {ref.uuid ? (
+                        <div className="mt-1 break-all font-mono text-[0.66rem] leading-snug text-slate-500">
+                          UUID: {ref.uuid}
+                        </div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
           </section>
         ) : null}
 
@@ -1343,6 +1615,31 @@ export function SceneTree({
         }
         if (meta.meshDiagnostics?.hasSlices) {
           rows.push({ label: "Slices", value: "Yes", align: "right" });
+          if (typeof meta.meshDiagnostics.sliceCount === "number") {
+            rows.push({
+              label: "Slice count",
+              value: meta.meshDiagnostics.sliceCount.toLocaleString(),
+              numeric: true,
+              align: "right",
+            });
+          }
+          if (meta.meshDiagnostics.sliceStackId !== null && meta.meshDiagnostics.sliceStackId !== undefined) {
+            rows.push({
+              label: "Slice stack ID",
+              value: Number.isFinite(meta.meshDiagnostics.sliceStackId)
+                ? meta.meshDiagnostics.sliceStackId.toLocaleString()
+                : String(meta.meshDiagnostics.sliceStackId),
+              numeric: Number.isFinite(meta.meshDiagnostics.sliceStackId),
+              align: "right",
+            });
+          }
+          if (meta.meshDiagnostics.slicesMeshResolution?.name) {
+            rows.push({
+              label: "Slice resolution",
+              value: meta.meshDiagnostics.slicesMeshResolution.name,
+              align: "right",
+            });
+          }
         }
         if (meta.childCount !== undefined) {
           rows.push({

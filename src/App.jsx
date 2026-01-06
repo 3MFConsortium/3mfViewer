@@ -272,6 +272,13 @@ function ViewerApp() {
         badge: "Vertex colours",
         description: "Single mesh with a smooth vertex-colour gradient across the cube.",
       },
+      {
+        name: "Sliced Cube",
+        fileName: "P_SXX_0101_03.3mf",
+        urls: ["/data/slice/P_SXX_0101_03.3mf"],
+        badge: "Slice extension",
+        description: "Cube with slice stack data for layer-by-layer visualization.",
+      },
     ],
     []
   );
@@ -282,7 +289,7 @@ function ViewerApp() {
       { label: "Properties", status: "now" },
       { label: "Colors", status: "now" },
       { label: "Textures", status: "now" },
-      { label: "Slice extension", status: "progress" },
+      { label: "Slice extension", status: "now" },
       { label: "Beam lattice extension", status: "soon" },
       { label: "Volumetric extension", status: "soon" },
     ];
@@ -675,6 +682,53 @@ function ViewerApp() {
       min: box.min.clone(),
     };
   }, [sceneObject]);
+
+  const sliceMax = useMemo(() => {
+    const stacks = sceneData?.sliceStacks ?? [];
+    if (!stacks.length) return -1;
+    const max = stacks.reduce((acc, stack) => {
+      const count = Number(stack?.sliceCount ?? 0);
+      return Number.isFinite(count) ? Math.max(acc, count) : acc;
+    }, 0);
+    return max > 0 ? max - 1 : -1;
+  }, [sceneData]);
+
+  useEffect(() => {
+    if (!sceneObject) return;
+    const sliceViewActive = prefs.sliceIndex >= 0;
+    const targetSlice = prefs.sliceIndex;
+
+    sceneObject.traverse((child) => {
+      if (child?.isMesh && !child.userData?.isSliceLine) {
+        const material = child.material;
+        if (!material) return;
+        if (sliceViewActive) {
+          if (!child.userData.originalMaterial) {
+            child.userData.originalMaterial = {
+              transparent: material.transparent,
+              opacity: material.opacity,
+              depthWrite: material.depthWrite,
+            };
+          }
+          material.transparent = true;
+          material.opacity = 0.15;
+          material.depthWrite = false;
+          material.needsUpdate = true;
+        } else if (child.userData.originalMaterial) {
+          const original = child.userData.originalMaterial;
+          material.transparent = original.transparent;
+          material.opacity = original.opacity;
+          material.depthWrite = original.depthWrite;
+          material.needsUpdate = true;
+          delete child.userData.originalMaterial;
+        }
+      }
+
+      if (child?.userData?.isSliceLine) {
+        child.visible = sliceViewActive && child.userData.sliceIndex === targetSlice;
+      }
+    });
+  }, [sceneObject, prefs.sliceIndex, sliceMax]);
 
   // ---------- refs ----------
   const controlsRef = useRef(null);

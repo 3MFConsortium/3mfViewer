@@ -3,7 +3,7 @@ import * as THREE from "three";
 
 export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds = [] }) {
   const wireframe = !!renderOptions?.wireframe;
-  const showEdges = false;
+  const showEdges = !!renderOptions?.edges;
   const edgeColor = renderOptions?.edgeColor || "#111827";
   const hiddenSet = useMemo(() => new Set(hiddenMeshIds), [hiddenMeshIds]);
 
@@ -56,33 +56,23 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
     );
     object.traverse((child) => {
       if (!child.isMesh) return;
+      if (child.userData?.isSliceLine) return; // Skip slice lines
+
       if (child.userData?.virtualMesh) {
-        const visibilityAttr = child.geometry?.getAttribute("virtualVisibility");
+        // For virtual meshes (flattened geometry), check if ANY resource in the mesh is hidden
         const idAttr = child.geometry?.getAttribute("virtualResourceId");
-        const useTextureAttr = child.geometry?.getAttribute("virtualUseTexture");
-        const hasTextureAttr = child.geometry?.getAttribute("virtualHasTexture");
-        if (visibilityAttr && idAttr && useTextureAttr && hasTextureAttr) {
+        if (idAttr) {
+          // Collect unique resource IDs in this mesh
+          const resourceIdsInMesh = new Set();
           for (let i = 0; i < idAttr.count; i += 1) {
-            const resourceId = idAttr.getX(i);
-            const hidden = hiddenIds.has(resourceId);
-            const textured = hasTextureAttr.getX(i) > 0.5;
-            if (hidden && textured) {
-              visibilityAttr.setX(i, 1);
-              useTextureAttr.setX(i, 0);
-            } else if (hidden) {
-              visibilityAttr.setX(i, 0);
-              useTextureAttr.setX(i, textured ? 1 : 0);
-            } else {
-              visibilityAttr.setX(i, 1);
-              useTextureAttr.setX(i, textured ? 1 : 0);
-            }
+            resourceIdsInMesh.add(idAttr.getX(i));
           }
-          visibilityAttr.updateRange.offset = 0;
-          visibilityAttr.updateRange.count = visibilityAttr.count;
-          useTextureAttr.updateRange.offset = 0;
-          useTextureAttr.updateRange.count = useTextureAttr.count;
-          visibilityAttr.needsUpdate = true;
-          useTextureAttr.needsUpdate = true;
+          // Hide mesh if ALL its resources are hidden, show if any are visible
+          const allHidden = [...resourceIdsInMesh].every(id => hiddenIds.has(id));
+          const anyHidden = [...resourceIdsInMesh].some(id => hiddenIds.has(id));
+          // For single-resource meshes, this works perfectly
+          // For multi-resource meshes, hide if any resource is hidden (best we can do without custom shader)
+          child.visible = !anyHidden;
         }
       } else {
         child.visible = !hiddenSet.has(child.uuid);
@@ -102,16 +92,36 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
       materials.forEach((mat) => {
         if (!mat) return;
         const base = mat.userData.originalWireframe ?? false;
-        mat.wireframe = false;
+        if (wireframe) {
+          mat.wireframe = true;
+        } else if (showEdges) {
+          mat.wireframe = false;
+        } else {
+          mat.wireframe = base;
+        }
         mat.userData.originalWireframe = base;
       });
 
       const edgesHelper = child.userData.edgesHelper;
-      if (edgesHelper) {
+      if (showEdges) {
+        if (!edgesHelper) {
+          const geometry = new THREE.EdgesGeometry(child.geometry);
+          const material = new THREE.LineBasicMaterial({ color: edgeColor });
+          const helper = new THREE.LineSegments(geometry, material);
+          helper.renderOrder = 1;
+          child.add(helper);
+          child.userData.edgesHelper = helper;
+          child.userData.edgesColor = edgeColor;
+        } else if (child.userData.edgesColor !== edgeColor) {
+          edgesHelper.material.color.set(edgeColor);
+          child.userData.edgesColor = edgeColor;
+        }
+      } else if (edgesHelper) {
         child.remove(edgesHelper);
         edgesHelper.geometry?.dispose();
         edgesHelper.material?.dispose();
         delete child.userData.edgesHelper;
+        delete child.userData.edgesColor;
       }
     });
   }, [object, wireframe, showEdges, edgeColor, hiddenSet]);

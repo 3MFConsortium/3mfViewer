@@ -347,10 +347,106 @@ export function ThreeMFLoaderProvider({ children }) {
         componentResources.set(component.resourceId, component);
       });
 
+      const buildSliceGroup = (sliceStacks = [], fallbackBounds = null) => {
+        if (!Array.isArray(sliceStacks) || !sliceStacks.length) return null;
+        const root = new THREE.Group();
+        root.name = "Slice Stacks";
+
+        sliceStacks.forEach((stack, stackIndex) => {
+          const stackGroup = new THREE.Group();
+          const stackId = stack?.resourceId ?? stackIndex + 1;
+          stackGroup.name = `Slice Stack ${stackId}`;
+
+          const slices = Array.isArray(stack?.slices) ? stack.slices : [];
+          if (!slices.length) {
+            root.add(stackGroup);
+            return;
+          }
+
+          const addLoop = (points, z) => {
+            if (points.length < 2) return null;
+            const positions = new Float32Array(points.length * 2 * 3);
+            let offset = 0;
+            for (let i = 0; i < points.length; i += 1) {
+              const a = points[i];
+              const b = points[(i + 1) % points.length];
+              positions[offset++] = a.x;
+              positions[offset++] = a.y;
+              positions[offset++] = z;
+              positions[offset++] = b.x;
+              positions[offset++] = b.y;
+              positions[offset++] = z;
+            }
+            return positions;
+          };
+
+          const fallbackVertices = (() => {
+            if (!fallbackBounds) return [];
+            const min = fallbackBounds.min;
+            const max = fallbackBounds.max;
+            if (!min || !max) return [];
+            return [
+              { x: min.x, y: min.y },
+              { x: max.x, y: min.y },
+              { x: max.x, y: max.y },
+              { x: min.x, y: max.y },
+            ];
+          })();
+
+          const material = new THREE.LineBasicMaterial({
+            color: 0x0f172a,
+            transparent: true,
+            opacity: 0.55,
+            depthWrite: false,
+            depthTest: false,
+          });
+
+          slices.forEach((slice) => {
+            const vertices = Array.isArray(slice?.vertices) ? slice.vertices : [];
+            const verticesOrFallback = vertices.length >= 2 ? vertices : fallbackVertices;
+            if (verticesOrFallback.length < 2) return;
+            const z = Number.isFinite(Number(slice?.zTop)) ? Number(slice.zTop) : 0;
+            const polygonIndexCounts = Array.isArray(slice?.polygonIndexCounts)
+              ? slice.polygonIndexCounts
+              : [];
+
+            let positions = null;
+            if (polygonIndexCounts.length) {
+              const countValue = polygonIndexCounts[0];
+              const count = Number.isFinite(Number(countValue)) ? Number(countValue) : 0;
+              if (count >= 2) {
+                const maxCount = count === verticesOrFallback.length + 1 ? verticesOrFallback.length : count;
+                positions = addLoop(
+                  verticesOrFallback.slice(0, Math.min(verticesOrFallback.length, maxCount)),
+                  z
+                );
+              }
+            } else {
+              positions = addLoop(verticesOrFallback, z);
+            }
+
+            if (!positions) return;
+
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+            const lines = new THREE.LineSegments(geometry, material);
+            lines.userData.isSliceLine = true;
+            lines.userData.sliceIndex = slice.index ?? null;
+            lines.renderOrder = 2;
+            lines.visible = true;
+            stackGroup.add(lines);
+          });
+
+          root.add(stackGroup);
+        });
+
+        return root.children.length ? root : null;
+      };
+
 
       // --- Consuming Flat Geometry from Worker ---
       if (parsed.geometry) {
-        const { positions, colors, uvs, groups, vertexCount } = parsed.geometry;
+        const { positions, colors, uvs, resourceIds, groups, vertexCount } = parsed.geometry;
 
         if (vertexCount === 0) {
           throw new Error("No geometry in 3MF file.");
@@ -360,6 +456,21 @@ export function ThreeMFLoaderProvider({ children }) {
         geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
         geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
         geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+
+        // Virtual mesh attributes for per-resource visibility toggling
+        if (resourceIds) {
+          geometry.setAttribute("virtualResourceId", new THREE.BufferAttribute(resourceIds, 1));
+          // Initialize visibility to 1 (visible) for all vertices
+          const visibility = new Float32Array(vertexCount);
+          visibility.fill(1.0);
+          geometry.setAttribute("virtualVisibility", new THREE.BufferAttribute(visibility, 1));
+          // Track which vertices use textures (for visibility shader logic)
+          const useTexture = new Float32Array(vertexCount);
+          const hasTexture = new Float32Array(vertexCount);
+          // Will be populated based on groups
+          geometry.setAttribute("virtualUseTexture", new THREE.BufferAttribute(useTexture, 1));
+          geometry.setAttribute("virtualHasTexture", new THREE.BufferAttribute(hasTexture, 1));
+        }
 
         // Materials
         // We need to map textureId -> material index per group.
@@ -412,12 +523,16 @@ export function ThreeMFLoaderProvider({ children }) {
         mesh.castShadow = true;
         mesh.receiveShadow = true;
         mesh.name = fileName?.replace(/\.[^/.]+$/, "") || "3MF Model";
+        // Mark as virtual mesh for per-resource visibility toggling
+        if (resourceIds) {
+          mesh.userData.virtualMesh = true;
+        }
         // Orient for Y-up if needed (3MF is typically Z-up, but ThreeMFLoader usually rotates it?)
         // Standard ThreeMFLoader in three.js:
         // "3MF documents use a right-handed coordinate system... Z-axis is positive up."
         // THREE is Y-up.
         // The previous code didn't seem to apply a global rotation, assuming the viewer camera handles it OR usage of a container.
-        // I will check if I need to rotate it. 
+        // I will check if I need to rotate it.
         // The previous code put it in a group.
 
         group.add(mesh);
@@ -427,6 +542,16 @@ export function ThreeMFLoaderProvider({ children }) {
         console.error("No geometry returned from worker.");
       }
 
+      const fallbackBounds = (() => {
+        const mesh = group.children.find((child) => child.isMesh);
+        if (!mesh?.geometry) return null;
+        mesh.geometry.computeBoundingBox();
+        return mesh.geometry.boundingBox || null;
+      })();
+      const sliceGroup = buildSliceGroup(parsed.sliceStacks, fallbackBounds);
+      if (sliceGroup) {
+        group.add(sliceGroup);
+      }
 
       // Center the model
       const boundingBox = new THREE.Box3().setFromObject(group);
@@ -456,6 +581,7 @@ export function ThreeMFLoaderProvider({ children }) {
         colorGroups: parsed.colorGroups,
         texture2Ds: parsed.texture2Ds,
         texture2DGroups: parsed.texture2DGroups,
+        sliceStacks: parsed.sliceStacks,
         diagnostics: parsed.diagnostics,
         items: parsed.items
       };
@@ -475,6 +601,7 @@ export function ThreeMFLoaderProvider({ children }) {
         meshCount: parsed.meshResources?.length ?? 0,
         meshResources: parsed.meshResources,
         componentResources: parsed.componentResources,
+        sliceStacks: parsed.sliceStacks,
         items: parsed.items
       };
 

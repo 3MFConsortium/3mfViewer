@@ -6,7 +6,6 @@ import {
   IconCamera,
   IconReset,
   IconGrid,
-  IconGround,
   IconStats,
   IconShadows,
   IconWireframe,
@@ -43,11 +42,9 @@ export function BottomControls({
   onResetView,
   onScreenshot,
   gridOn,
-  groundOn,
   statsOn,
   shadowsOn,
   onToggleGrid,
-  onToggleGround,
   onToggleStats,
   onToggleShadows,
   wireframeOn,
@@ -86,7 +83,6 @@ export function BottomControls({
 
         {/* Toggles */}
         <Btn title="Grid helper"   onClick={onToggleGrid}   active={gridOn}><IconGrid /></Btn>
-        <Btn title="Ground plane"  onClick={onToggleGround} active={groundOn}><IconGround /></Btn>
         <Btn title="Stats overlay" onClick={onToggleStats}  active={statsOn}><IconStats /></Btn>
         <Btn title="Shadows"       onClick={onToggleShadows} active={shadowsOn}><IconShadows /></Btn>
 

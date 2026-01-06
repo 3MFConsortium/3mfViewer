@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local development files (Should never be committed)
+public/data/Wheel.3mf

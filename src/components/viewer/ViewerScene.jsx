@@ -87,12 +87,12 @@ export function ViewerScene({
 
           {prefs.ground && (
             <mesh rotation-x={-Math.PI / 2} position={[0, groundY, 0]} receiveShadow>
-              <planeGeometry args={[groundSize, groundSize]} />
+              <planeGeometry args={[10000, 10000]} />
               <shadowMaterial opacity={prefs.shadows ? 0.2 : 0.0} />
             </mesh>
           )}
           {prefs.grid && (
-            <gridHelper args={[groundSize, gridDivisions]} position={[0, groundY + 0.001, 0]} />
+            <gridHelper args={[10000, 500, 0x888888, 0xcccccc]} position={[0, groundY + 0.001, 0]} />
           )}
         </Canvas>
       )}

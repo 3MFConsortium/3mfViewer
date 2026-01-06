@@ -2,6 +2,7 @@ import React from "react";
 import { useViewerStore } from "../../stores/viewerStore.js";
 
 import { BottomControls } from "../ui/BottomControls.jsx";
+import { SliceSlider } from "../ui/SliceSlider.jsx";
 import { IconDock, IconClose, IconQuestion } from "../ui/Icons.jsx";
 
 export function ViewerOverlays({
@@ -26,19 +27,18 @@ export function ViewerOverlays({
   const helpAvailable = true;
   const helpButtonRef = null; // or pass it if needed
 
-  const renderBottomControls = (extraProps = {}) => (
-    <BottomControls
+  const renderBottomControls = (extraProps = {}) => {
+    return (
+      <BottomControls
       onZoomIn={controls.onZoomIn}
       onZoomOut={controls.onZoomOut}
       onFit={controls.onFit}
       onResetView={controls.onResetView}
       onScreenshot={controls.onScreenshot}
       gridOn={controls.gridOn}
-      groundOn={controls.groundOn}
       statsOn={controls.statsOn}
       shadowsOn={controls.shadowsOn}
       onToggleGrid={controls.onToggleGrid}
-      onToggleGround={controls.onToggleGround}
       onToggleStats={controls.onToggleStats}
       onToggleShadows={controls.onToggleShadows}
       wireframeOn={controls.wireframeOn}
@@ -47,10 +47,13 @@ export function ViewerOverlays({
       onToggleEdges={controls.onToggleEdges}
       {...extraProps}
     />
-  );
+    );
+  };
 
   return (
     <>
+      <SliceSlider />
+
       {showDesktopBottomBar && renderBottomControls()}
 
       {showTabletDock && (

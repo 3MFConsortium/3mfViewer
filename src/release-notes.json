@@ -1,4 +1,12 @@
 {
+  "0.22.0": [
+    "Added slice extension support with vertical slider for navigating slice stacks",
+    "Slice viewer shows individual layers with mesh transparency when active",
+    "Infinite ground plane and grid helper regardless of model scale",
+    "Fixed mesh visibility toggle in scene tree to properly hide/show objects",
+    "Switched icon library from react-icons to lucide-react",
+    "Streamlined bottom dock by removing ground plane button"
+  ],
   "0.21.0": [
     "Improved support for textured 3MF files",
     "Marked texture support as complete on the home page",

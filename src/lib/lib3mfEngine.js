@@ -35,6 +35,23 @@ function toInt(v) {
     return Number.isFinite(n) ? n : null;
 }
 
+function coerceVector(value, mapFn) {
+    if (!value) return [];
+    const out = [];
+    if (Array.isArray(value)) {
+        for (const entry of value) out.push(entry);
+    } else if (typeof value.size === "function" && typeof value.get === "function") {
+        const count = value.size();
+        for (let i = 0; i < count; i += 1) out.push(value.get(i));
+    } else if (typeof value.length === "number") {
+        for (let i = 0; i < value.length; i += 1) out.push(value[i]);
+    }
+    if (mapFn) {
+        return out.map(mapFn);
+    }
+    return out;
+}
+
 const SPECIFICATION_URL = "http://schemas.microsoft.com/3dmanufacturing/core/2015/02";
 
 // --- Matrix Math Helpers for Component Transforms ---
@@ -674,6 +691,115 @@ export class Lib3mfEngine {
         return entries;
     }
 
+    readSliceStackEntries(model) {
+        const stacks = [];
+        const iterator = model.GetSliceStacks?.();
+        if (!iterator) return stacks;
+        try {
+            while (iterator.MoveNext?.()) {
+                const stack = iterator.GetCurrentSliceStack?.();
+                if (!stack) continue;
+                try {
+                    const resourceId = stack.GetResourceID?.();
+                    const uniqueResourceId = stack.GetUniqueResourceID?.();
+                    const uuidInfo = this.getUUIDSafe(stack);
+                    const bottomZValue = stack.GetBottomZ?.();
+                    const bottomZ = Number.isFinite(Number(bottomZValue)) ? Number(bottomZValue) : null;
+                    const sliceCountValue = stack.GetSliceCount?.();
+                    const sliceCount = Number.isFinite(Number(sliceCountValue)) ? Number(sliceCountValue) : 0;
+                    let ownPath = null;
+                    try {
+                        ownPath = stack.GetOwnPath?.() ?? null;
+                    } catch (err) {
+                        logCatch("readSliceStackEntries.GetOwnPath failed", err);
+                    }
+
+                    const references = [];
+                    const refCount = stack.GetSliceRefCount?.() ?? 0;
+                    for (let i = 0; i < refCount; i += 1) {
+                        const reference = stack.GetSliceStackReference?.(i);
+                        if (!reference) continue;
+                        try {
+                            const refUuid = this.getUUIDSafe(reference);
+                            references.push({
+                                resourceId: reference.GetResourceID?.() ?? null,
+                                uniqueResourceId: reference.GetUniqueResourceID?.() ?? null,
+                                uuid: refUuid.uuid,
+                                hasUUID: refUuid.hasUUID,
+                            });
+                        } finally {
+                            safeDelete(reference);
+                        }
+                    }
+
+                    const slices = [];
+                    for (let i = 0; i < sliceCount; i += 1) {
+                        const slice = stack.GetSlice?.(i);
+                        if (!slice) continue;
+                        try {
+                        const zTopValue = slice.GetZTop?.();
+                        const zTop = Number.isFinite(Number(zTopValue)) ? Number(zTopValue) : null;
+                        const vertexCountValue = slice.GetVertexCount?.();
+                        const vertexCount = Number.isFinite(Number(vertexCountValue)) ? Number(vertexCountValue) : 0;
+                        const polygonCountValue = slice.GetPolygonCount?.();
+                        const polygonCount = Number.isFinite(Number(polygonCountValue)) ? Number(polygonCountValue) : 0;
+                            const vertices = [];
+                            for (let v = 0; v < vertexCount; v += 1) {
+                                const vertex = slice.GetVertex?.(v);
+                                if (!vertex) continue;
+                                try {
+                                    const x = vertex.get_Coordinates0?.();
+                                    const y = vertex.get_Coordinates1?.();
+                                    vertices.push({
+                                        x: Number.isFinite(x) ? x : 0,
+                                        y: Number.isFinite(y) ? y : 0,
+                                    });
+                                } finally {
+                                    safeDelete(vertex);
+                                }
+                            }
+
+                        const polygonIndexCounts = [];
+                        for (let p = 0; p < polygonCount; p += 1) {
+                            const countValue = slice.GetPolygonIndexCount?.(p);
+                            const count = Number.isFinite(Number(countValue)) ? Number(countValue) : null;
+                            polygonIndexCounts.push(count);
+                        }
+
+                            slices.push({
+                                index: i,
+                                zTop,
+                            vertexCount,
+                            polygonCount,
+                            vertices,
+                            polygonIndexCounts,
+                        });
+                        } finally {
+                            safeDelete(slice);
+                        }
+                    }
+
+                    stacks.push({
+                        resourceId,
+                        uniqueResourceId,
+                        uuid: uuidInfo.uuid,
+                        hasUUID: uuidInfo.hasUUID,
+                        bottomZ,
+                        sliceCount,
+                        ownPath,
+                        references,
+                        slices,
+                    });
+                } finally {
+                    safeDelete(stack);
+                }
+            }
+        } finally {
+            safeDelete(iterator);
+        }
+        return stacks;
+    }
+
     buildMaterialLookupMaps(baseGroups, colorGroups) {
         const baseLookup = new Map();
         const colorLookup = new Map();
@@ -1063,6 +1189,12 @@ export class Lib3mfEngine {
                 triangleCount: null,
                 hasSlices: false,
                 manifoldOriented: undefined,
+                sliceStackId: null,
+                sliceStackUuid: null,
+                sliceStackHasUUID: false,
+                sliceCount: null,
+                sliceBottomZ: null,
+                slicesMeshResolution: null,
                 uuid: null,
                 hasUUID: false,
             };
@@ -1071,12 +1203,50 @@ export class Lib3mfEngine {
         const triangleCount = meshObj.GetTriangleCount?.() ?? null;
         const hasSlices = meshObj.HasSlices?.(false) ? true : false;
         const manifoldOriented = undefined;
+        let sliceStackId = null;
+        let sliceStackUuid = null;
+        let sliceStackHasUUID = false;
+        let sliceCount = null;
+        let sliceBottomZ = null;
+        let slicesMeshResolution = null;
+        if (hasSlices) {
+            try {
+                const resolutionValue = meshObj.GetSlicesMeshResolution?.();
+                if (resolutionValue !== undefined) {
+                    slicesMeshResolution = this.describeSlicesMeshResolution(resolutionValue);
+                }
+            } catch (err) {
+                logCatch("getMeshSummary.GetSlicesMeshResolution failed", err);
+            }
+            try {
+                const sliceStack = meshObj.GetSliceStack?.();
+                if (sliceStack) {
+                    sliceStackId = sliceStack.GetResourceID?.() ?? null;
+                    const sliceCountValue = sliceStack.GetSliceCount?.();
+                    sliceCount = Number.isFinite(Number(sliceCountValue)) ? Number(sliceCountValue) : null;
+                    const sliceBottomZValue = sliceStack.GetBottomZ?.();
+                    sliceBottomZ = Number.isFinite(Number(sliceBottomZValue)) ? Number(sliceBottomZValue) : null;
+                    const uuidInfo = this.getUUIDSafe(sliceStack);
+                    sliceStackUuid = uuidInfo.uuid;
+                    sliceStackHasUUID = uuidInfo.hasUUID;
+                }
+                safeDelete(sliceStack);
+            } catch (err) {
+                logCatch("getMeshSummary.GetSliceStack failed", err);
+            }
+        }
         const uuidInfo = this.getUUIDSafe(meshObj);
         return {
             vertexCount,
             triangleCount,
             hasSlices,
             manifoldOriented,
+            sliceStackId,
+            sliceStackUuid,
+            sliceStackHasUUID,
+            sliceCount,
+            sliceBottomZ,
+            slicesMeshResolution,
             uuid: uuidInfo.uuid,
             hasUUID: uuidInfo.hasUUID,
         };
@@ -1101,6 +1271,18 @@ export class Lib3mfEngine {
             default:
                 return { code, name: "Unknown", symbol: "", toMeters: 1 };
         }
+    }
+
+    describeSlicesMeshResolution(value) {
+        const code = Number(value);
+        const resolution = this.lib.eSlicesMeshResolution;
+        if (resolution?.Fullres !== undefined && value === resolution.Fullres) {
+            return { code, name: "Fullres" };
+        }
+        if (resolution?.Lowres !== undefined && value === resolution.Lowres) {
+            return { code, name: "Lowres" };
+        }
+        return { code, name: "Unknown" };
     }
 
     collectBuildItemMetadata(buildItem) {
@@ -1419,6 +1601,7 @@ export class Lib3mfEngine {
 
             const texture2Ds = this.readTexture2DEntries(model);
             const texture2DGroups = this.readTexture2DGroupEntries(model);
+            const sliceStacks = this.readSliceStackEntries(model);
             const hasTextures = texture2DGroups.length > 0 && texture2Ds.length > 0;
 
             const lookupMaps = this.buildMaterialLookupMaps(baseMaterialGroups, colorGroups);
@@ -1589,6 +1772,7 @@ export class Lib3mfEngine {
                 meshResources: meshResources.size,
                 meshes: meshResourcesArray.length,
                 components: items.filter((item) => item.type === "components").length,
+                sliceStacks: sliceStacks.length,
             };
 
             const primarySpecification = specifications[0] ?? null;
@@ -1631,6 +1815,7 @@ export class Lib3mfEngine {
             const flatColor = new Float32Array(totalVertices * 3);
             const flatUV = new Float32Array(totalVertices * 2);
             const flatMaterialIndex = new Float32Array(totalVertices); // For debugging or specialized shaders
+            const flatResourceId = new Float32Array(totalVertices); // Resource ID per vertex for visibility toggling
 
             // Material/Group tracking
             // We want to group by Texture ID / Material configuration to minimize draw calls in THREE.
@@ -1802,6 +1987,12 @@ export class Lib3mfEngine {
                         for (let k = 0; k < 6; k++) flatUV[uvOffset + k] = 0;
                     }
 
+                    // Resource ID (for visibility toggling)
+                    const resId = resource.resourceId ?? 0;
+                    flatResourceId[vertexCursor + 0] = resId;
+                    flatResourceId[vertexCursor + 1] = resId;
+                    flatResourceId[vertexCursor + 2] = resId;
+
                     vertexCursor += 3;
                     groupCount += 3;
                 }
@@ -1813,6 +2004,7 @@ export class Lib3mfEngine {
                 positions: flatPosition,
                 colors: flatColor,
                 uvs: flatUV,
+                resourceIds: flatResourceId,
                 groups,
                 vertexCount: vertexCursor
             };
@@ -1825,6 +2017,7 @@ export class Lib3mfEngine {
                 colorGroups,
                 texture2Ds,
                 texture2DGroups,
+                sliceStacks,
                 meshResources: meshResourcesArray,
                 componentResources: componentResourcesArray,
                 items,
