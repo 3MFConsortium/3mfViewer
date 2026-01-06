@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>3MF Viewer Embed Demo</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      #viewer {
+        height: 100%;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="viewer"></div>
+
+    <script src="/embed.js"></script>
+    <script>
+      const viewer = ThreeMFViewerEmbed.create({
+        container: "#viewer",
+        height: "100%",
+        src: "/data/colorcube.3mf",
+      });
+    </script>
+  </body>
+</html>

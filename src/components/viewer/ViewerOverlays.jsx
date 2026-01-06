@@ -10,7 +10,23 @@ export function ViewerOverlays({
   showTabletDock,
   showTouchFab,
   controls,
+  minimal = false,
 }) {
+  if (minimal) {
+    return (
+      <>
+        <SliceSlider position="bottom" />
+        <div className="pointer-events-none fixed right-3 top-3 z-40">
+          <div className="group pointer-events-auto flex min-w-[2.2rem] items-center justify-center gap-0 rounded-full border border-slate-900/20 bg-white/85 px-2 py-1 text-[0.55rem] font-semibold uppercase tracking-[0.2em] text-slate-600 shadow-md backdrop-blur">
+            <img src="/3mf_logo.png" alt="3MF" className="h-3.5 w-auto" />
+            <span className="max-w-0 overflow-hidden whitespace-nowrap pl-0 opacity-0 transition-all duration-200 group-hover:max-w-xs group-hover:pl-2 group-hover:opacity-100">
+              Powered by 3MF Consortium
+            </span>
+          </div>
+        </div>
+      </>
+    );
+  }
   const loadStatus = useViewerStore((state) => state.viewer.loadStatus);
   const loadedName = useViewerStore((state) => state.viewer.loadedName);
   const loadError = useViewerStore((state) => state.viewer.loadError);

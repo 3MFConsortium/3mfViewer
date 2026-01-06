@@ -24,6 +24,7 @@ export function ViewerScene({
   onSelectFile,
   sceneMetadata,
   onUpdateSpecifications,
+  hideSceneTree = false,
 }) {
   const prefs = useViewerStore((state) => state.prefs);
   const sceneObject = useViewerStore((state) => state.viewer.sceneObject);
@@ -38,7 +39,7 @@ export function ViewerScene({
   const setSelectedNode = useViewerStore((state) => state.setSelectedNode);
   const setMobileNavOpen = useViewerStore((state) => state.setMobileNavOpen);
 
-  const showSceneTree = showScene && prefs.uiSceneTree;
+  const showSceneTree = showScene && prefs.uiSceneTree && !hideSceneTree;
 
   return (
     <>

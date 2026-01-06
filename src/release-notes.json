@@ -1,4 +1,9 @@
 {
+  "0.23.0": [
+    "Added Quick Embed API with a minimal viewer mode for iframe-based integrations",
+    "Embeds can load 3MFs via URL, base64 payload, or postMessage commands",
+    "Embed demo pages added to showcase responsive layouts and blog-style usage"
+  ],
   "0.22.0": [
     "Added slice extension support with vertical slider for navigating slice stacks",
     "Slice viewer shows individual layers with mesh transparency when active",

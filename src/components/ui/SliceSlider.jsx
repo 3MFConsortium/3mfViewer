@@ -2,7 +2,7 @@ import React from "react";
 import { shallow } from "zustand/shallow";
 import { useViewerStore } from "../../stores/viewerStore.js";
 
-export function SliceSlider() {
+export function SliceSlider({ position = "side" }) {
   const sliceStacksRaw = useViewerStore(
     (state) => state.viewer.sceneData?.sliceStacks,
     shallow
@@ -41,6 +41,49 @@ export function SliceSlider() {
   };
 
   if (sliceMax < 0) return null;
+
+  if (position === "bottom") {
+    return (
+      <div className="fixed inset-x-3 bottom-3 z-40 flex justify-center">
+        <div className="flex w-full max-w-[min(90vw,360px)] items-center gap-3 rounded-2xl bg-slate-900/90 px-3 py-2 shadow-xl ring-1 ring-white/10 backdrop-blur-sm">
+          <button
+            type="button"
+            onClick={handleToggle}
+            className={`rounded-full px-3 py-1 text-[0.6rem] font-semibold uppercase tracking-[0.3em] transition ${
+              sliceViewActive
+                ? "bg-cyan-500 text-white shadow-lg shadow-cyan-500/30"
+                : "bg-white/10 text-white/70 hover:bg-white/20 hover:text-white"
+            }`}
+            title={sliceViewActive ? "Hide slices" : "Show slices"}
+          >
+            Slice
+          </button>
+          {sliceViewActive ? (
+            <>
+              <span className="text-[0.6rem] font-medium tabular-nums text-white/60">
+                {currentSlice}
+              </span>
+              <input
+                type="range"
+                min="0"
+                max={sliceMax}
+                step="1"
+                value={currentSlice}
+                onChange={handleSliderChange}
+                className="h-1.5 w-full cursor-pointer appearance-none rounded-full bg-white/20"
+                aria-label="Slice index"
+              />
+              <span className="text-[0.6rem] font-medium tabular-nums text-white/60">
+                {sliceMax}
+              </span>
+            </>
+          ) : (
+            <span className="text-[0.65rem] text-white/50">Layers</span>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed right-3 top-1/2 z-40 flex -translate-y-1/2 flex-col items-center">

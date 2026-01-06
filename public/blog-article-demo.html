@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3MF Embed Blog Article Demo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Ubuntu:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        /* Custom Theme Adjustments */
+        :root {
+            --font-sans: 'Ubuntu', system-ui, -apple-system, sans-serif;
+            --font-mono: 'JetBrains Mono', monospace;
+        }
+        body {
+            font-family: var(--font-sans);
+            background-color: #f8fafc; /* Slate 50 */
+            color: #0f172a; /* Slate 900 */
+        }
+        .font-mono {
+            font-family: var(--font-mono);
+        }
+        
+        /* Technical Studio Light Accents */
+        .tech-border {
+            border: 1px solid #e2e8f0;
+        }
+        .tech-card {
+            background: white;
+            box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+        }
+        
+        /* Grid Background Pattern for that 'Engineering' look */
+        .bg-grid {
+            background-size: 40px 40px;
+            background-image: radial-gradient(circle, #cbd5e1 1px, transparent 1px);
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col">
+
+    <!-- Navigation / Header -->
+    <header class="border-b border-slate-200 bg-white/80 backdrop-blur-md sticky top-0 z-10">
+        <div class="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <img src="/3mf_logo.png" alt="3MF" class="h-6 w-auto" />
+            </div>
+            <div class="font-mono text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+                3MF Viewer Live Embed Demo
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="max-w-5xl mx-auto px-6 pt-16 pb-12">
+        <div class="max-w-3xl">
+            <div class="flex items-center gap-2 mb-6">
+                <span class="h-px w-8 bg-sky-500"></span>
+                <span class="text-sky-600 font-mono text-sm uppercase tracking-wider font-semibold">Technical Note</span>
+            </div>
+            <h1 class="text-4xl md:text-5xl font-bold tracking-tight text-slate-900 mb-6 leading-tight">
+                Five printable studies, embedded via the <span class="text-slate-400">Quick Viewer</span> API.
+            </h1>
+            <p class="text-lg text-slate-600 leading-relaxed border-l-4 border-slate-200 pl-6">
+                This layout mirrors a technical blog article: narrative paired with inline, interactive 3MF renders. 
+                Each viewer below is an <code class="font-mono text-sm bg-slate-100 px-1 py-0.5 rounded text-pink-600">iframe</code> configured 
+                with specific aspect ratios to demonstrate responsive embedding capabilities.
+            </p>
+        </div>
+    </section>
+
+    <!-- Main Content -->
+    <main class="max-w-5xl mx-auto px-6 pb-24 space-y-24">
+
+        <!-- Entry 1: Split Layout (Text Left, Square Viewer Right) -->
+        <article class="grid md:grid-cols-2 gap-12 items-center">
+            <div class="order-2 md:order-1">
+                <div class="flex items-center gap-3 mb-3">
+                    <span class="font-mono text-xs font-bold text-slate-400">01</span>
+                    <span class="h-px flex-1 bg-slate-200"></span>
+                    <span class="font-mono text-xs text-slate-500">ID: VIEWER-CUBE</span>
+                </div>
+                <h2 class="text-2xl font-semibold text-slate-900 mb-4">Foundational Cube</h2>
+                <p class="text-slate-600 mb-6 leading-relaxed">
+                    A simple block lets us verify camera fit, lighting balance, and the overall embed framing before diving into more involved datasets. Note how the viewer maintains a strict 1:1 aspect ratio here.
+                </p>
+                <div class="flex gap-2">
+                    <span class="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-mono rounded border border-slate-200">#geometry</span>
+                    <span class="px-3 py-1 bg-slate-100 text-slate-600 text-xs font-mono rounded border border-slate-200">#calibration</span>
+                </div>
+            </div>
+            
+            <!-- Viewer Container -->
+            <div class="order-1 md:order-2 tech-card p-2 rounded-xl border border-slate-200">
+                <div class="relative w-full aspect-square bg-slate-50 rounded-lg overflow-hidden border border-slate-100">
+                    <div id="viewer-cube" class="w-full h-full"></div>
+                </div>
+            </div>
+        </article>
+
+
+        <!-- Entry 2: Full Width 'Cinematic' Viewer -->
+        <article class="space-y-6">
+            <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <div class="flex items-center gap-3 mb-2">
+                        <span class="font-mono text-xs font-bold text-slate-400">02</span>
+                        <span class="font-mono text-xs text-sky-600 bg-sky-50 px-2 py-0.5 rounded">WIDE MODE</span>
+                    </div>
+                    <h2 class="text-2xl font-semibold text-slate-900">Slice Stack Coverage</h2>
+                </div>
+                <p class="max-w-md text-slate-500 text-sm text-right md:text-left">
+                    A layered dataset that brings the slice slider to life. This embed spans the full content width with a cinematic 21:9 ratio.
+                </p>
+            </div>
+
+            <div class="tech-card p-2 rounded-xl border border-slate-200">
+                <div class="relative w-full h-[400px] bg-slate-900 rounded-lg overflow-hidden border border-slate-800">
+                    <div id="viewer-slice" class="w-full h-full"></div>
+                </div>
+            </div>
+        </article>
+
+
+        <!-- Entry 3: Complex layout (Text Right, Tall Viewer Left) -->
+        <article class="grid md:grid-cols-12 gap-8 items-start">
+            <!-- Viewer (Spans 5 cols) -->
+            <div class="md:col-span-5 tech-card p-2 rounded-xl border border-slate-200">
+                <div class="relative w-full h-[500px] bg-slate-50 rounded-lg overflow-hidden border border-slate-100">
+                    <div id="viewer-helix" class="w-full h-full"></div>
+                </div>
+            </div>
+
+            <!-- Content (Spans 7 cols) -->
+            <div class="md:col-span-7 pt-4">
+                <div class="flex items-center gap-3 mb-3">
+                    <span class="font-mono text-xs font-bold text-slate-400">03</span>
+                </div>
+                <h2 class="text-2xl font-semibold text-slate-900 mb-4">Helix with Curves</h2>
+                <div class="prose prose-slate text-slate-600 mb-8">
+                    <p>
+                        This spiral design highlights continuous geometry and complex contours. 
+                        It is perfect for demonstrating orbit precision and camera damping.
+                    </p>
+                    <p class="mt-4">
+                        The vertical aspect ratio (<code class="text-xs font-mono bg-slate-100 px-1 rounded">h-auto</code>) 
+                        ensures the tall geometry fits comfortably without excessive zooming.
+                    </p>
+                </div>
+                
+                <div class="bg-slate-50 border border-slate-200 rounded-lg p-4 font-mono text-xs text-slate-500">
+                    <div class="flex justify-between mb-2">
+                        <span>Volume:</span>
+                        <span class="text-slate-900">124.5 cm³</span>
+                    </div>
+                    <div class="flex justify-between mb-2">
+                        <span>Bounding Box:</span>
+                        <span class="text-slate-900">120 x 45 x 300 mm</span>
+                    </div>
+                    <div class="flex justify-between">
+                        <span>Manifold:</span>
+                        <span class="text-emerald-600 font-bold">YES</span>
+                    </div>
+                </div>
+            </div>
+        </article>
+
+
+        <!-- Entry 4 & 5: Grid Layout (Side by Side) -->
+        <div class="grid md:grid-cols-2 gap-8">
+            
+            <!-- Entry 4 -->
+            <article class="flex flex-col h-full">
+                <div class="tech-card p-2 rounded-xl border border-slate-200 mb-6 flex-grow">
+                    <div class="relative w-full aspect-video bg-slate-50 rounded-lg overflow-hidden border border-slate-100 min-h-[360px]">
+                        <div id="viewer-colorcube" class="w-full h-full"></div>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex items-center gap-3 mb-2">
+                        <span class="font-mono text-xs font-bold text-slate-400">04</span>
+                        <h2 class="text-lg font-semibold text-slate-900">Color Cube Coverage</h2>
+                    </div>
+                    <p class="text-sm text-slate-600 leading-relaxed">
+                        A saturated palette to confirm color fidelity.
+                        This compact embed demonstrates color clarity at smaller sizes.
+                    </p>
+                </div>
+            </article>
+
+            <!-- Entry 5 -->
+            <article class="flex flex-col h-full">
+                <div class="tech-card p-2 rounded-xl border border-slate-200 mb-6 flex-grow flex flex-col">
+                    <div class="relative w-full aspect-video bg-slate-50 rounded-lg overflow-hidden border border-slate-100">
+                        <div id="viewer-properties" class="w-full h-full"></div>
+                    </div>
+                    <div class="mt-4 px-2 pb-2">
+                        <div class="flex items-center gap-3 mb-2">
+                            <span class="font-mono text-xs font-bold text-slate-400">05</span>
+                            <h2 class="text-lg font-semibold text-slate-900">Property-rich Pyramid</h2>
+                        </div>
+                        <p class="text-sm text-slate-600 leading-relaxed">
+                            This model contains additional metadata and property annotations, 
+                            perfect for showing how the embed supports rich materials.
+                        </p>
+                    </div>
+                </div>
+            </article>
+
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-200 bg-white py-12 mt-auto">
+        <div class="max-w-5xl mx-auto px-6 text-center">
+            <p class="text-slate-500 text-sm font-medium">
+                Created by 3MF Consortium
+            </p>
+        </div>
+    </footer>
+
+    <script src="/embed.js"></script>
+    <script>
+        const models = [
+            { id: "viewer-cube", src: "/data/cube.3mf" },
+            { id: "viewer-colorcube", src: "/data/colorcube.3mf" },
+            { id: "viewer-helix", src: "/data/helix.3mf" },
+            { id: "viewer-slice", src: "/data/slice/P_SXX_0101_03.3mf" },
+            { id: "viewer-properties", src: "/data/PyramidWithProperties.3mf" }
+        ];
+
+        models.forEach((model) => {
+            ThreeMFViewerEmbed.create({
+                container: `#${model.id}`,
+                height: "100%",
+                src: model.src
+            });
+        });
+    </script>
+</body>
+</html>

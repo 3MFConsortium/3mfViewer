@@ -44,6 +44,72 @@ const STATUS_STYLES = {
 
 const getStatusMeta = (status) => STATUS_STYLES[status] || STATUS_STYLES.progress;
 
+const parseEmbedConfig = () => {
+  if (typeof window === "undefined") {
+    return {
+      enabled: false,
+      mode: null,
+      src: null,
+      origin: null,
+    };
+  }
+  const params = new URLSearchParams(window.location.search);
+  const rawEmbed = params.get("embed");
+  if (!rawEmbed) {
+    return {
+      enabled: false,
+      mode: null,
+      src: null,
+      origin: null,
+    };
+  }
+  const normalized = rawEmbed === "1" || rawEmbed === "true" ? "quick" : rawEmbed;
+  const src = params.get("src");
+  const originParam = params.get("origin");
+  let origin = null;
+  if (originParam) {
+    if (originParam === "*") {
+      origin = "*";
+    } else {
+      try {
+        origin = new URL(originParam, window.location.href).origin;
+      } catch {
+        origin = null;
+      }
+    }
+  } else if (document.referrer) {
+    try {
+      origin = new URL(document.referrer).origin;
+    } catch {
+      origin = null;
+    }
+  }
+  return {
+    enabled: true,
+    mode: normalized,
+    src,
+    origin,
+  };
+};
+
+const decodeBase64ToArrayBuffer = (input) => {
+  if (!input) return null;
+  const base64 = input.includes(",") ? input.split(",").pop() : input;
+  let binary = "";
+  try {
+    binary = window.atob(base64);
+  } catch {
+    return null;
+  }
+  const len = binary.length;
+  const buffer = new ArrayBuffer(len);
+  const view = new Uint8Array(buffer);
+  for (let i = 0; i < len; i += 1) {
+    view[i] = binary.charCodeAt(i);
+  }
+  return buffer;
+};
+
 function ViewerApp() {
   const { load3mf, ensureLib3mf } = useThreeMFLoader();
   const sceneObject = useViewerStore((state) => state.viewer.sceneObject);
@@ -101,6 +167,8 @@ function ViewerApp() {
   const helpButtonRef = useRef(null);
   const helpCardRef = useRef(null);
   const fps = useRafFps({ sample: 750 });
+  const embedConfig = useMemo(() => parseEmbedConfig(), []);
+  const isEmbedQuick = embedConfig.enabled && embedConfig.mode === "quick";
   const hiddenMeshIds = useViewerStore((state) => state.selection.hiddenMeshIds);
   const toggleMeshVisibility = useViewerStore((state) => state.toggleMeshVisibility);
   const selectedNodeId = useViewerStore((state) => state.selection.selectedNodeId);
@@ -736,14 +804,17 @@ function ViewerApp() {
   const cameraRef = useRef(null);
   const rendererRef = useRef(null);
   const fitRafRef = useRef(0);
+  const embedReadyRef = useRef(false);
+  const embedSrcLoadedRef = useRef(null);
 
-  const handleLoadFile = useCallback(
-    async (file) => {
-      if (!file) return;
+  const loadFromArrayBuffer = useCallback(
+    async (arrayBuffer, name, options = {}) => {
+      if (!arrayBuffer) return;
+      const fileName = name || "embedded.3mf";
 
       resetTransientUi();
       resetTransientSpecs();
-      beginLoad(file.name);
+      beginLoad(fileName);
       setMobileNavOpen(false);
       setLoadProgress(null);
       setLoadTimings([]);
@@ -751,13 +822,14 @@ function ViewerApp() {
       setLoadStage(null);
 
       try {
-        const extension = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
-        if (extension !== ".3mf") {
-          throw new Error(`Unsupported file type: ${extension || "(unknown)"}`);
+        if (!options.skipExtensionCheck && fileName) {
+          const extension = fileName.slice(fileName.lastIndexOf(".")).toLowerCase();
+          if (extension && extension !== ".3mf") {
+            throw new Error(`Unsupported file type: ${extension || "(unknown)"}`);
+          }
         }
 
-        const arrayBuffer = await file.arrayBuffer();
-        const rawResult = await load3mf(arrayBuffer, file.name, {
+        const rawResult = await load3mf(arrayBuffer, fileName, {
           specificationUrls: specUrls,
           onStream: (partial) => {
             if (!partial?.group) return;
@@ -785,7 +857,7 @@ function ViewerApp() {
           },
         });
 
-        const processedResult = applyLoadedResult(rawResult, file.name);
+        const processedResult = applyLoadedResult(rawResult, fileName);
         if (Array.isArray(processedResult.metadata?.specifications)) {
           setSpecResults(processedResult.metadata.specifications);
           setSpecUrls(
@@ -825,6 +897,15 @@ function ViewerApp() {
       setSpecResults,
       setSpecUrls,
     ]
+  );
+
+  const handleLoadFile = useCallback(
+    async (file) => {
+      if (!file) return;
+      const arrayBuffer = await file.arrayBuffer();
+      await loadFromArrayBuffer(arrayBuffer, file.name);
+    },
+    [loadFromArrayBuffer]
   );
 
   const handleFileInputChange = useCallback(
@@ -877,6 +958,7 @@ function ViewerApp() {
     },
     [setPrefs]
   );
+
 
 
   useEffect(() => {
@@ -1013,6 +1095,115 @@ function ViewerApp() {
     controls.update();
   }, []);
 
+  useEffect(() => {
+    if (!embedConfig.enabled) return undefined;
+    const allowedOrigin = embedConfig.origin;
+    const allowAny = !allowedOrigin || allowedOrigin === "*";
+    const targetOrigin = allowAny ? "*" : allowedOrigin;
+    const isParentFrame = () => window.parent && window.parent !== window;
+
+    const postToParent = (payload) => {
+      if (!isParentFrame()) return;
+      window.parent.postMessage(payload, targetOrigin);
+    };
+
+    const loadFromPayload = async (payload) => {
+      if (!payload) return;
+      if (payload.files && Array.isArray(payload.files) && payload.files.length) {
+        const [first] = payload.files;
+        await loadFromPayload({ ...first, name: first.name || payload.name });
+        return;
+      }
+      if (payload.blob instanceof Blob) {
+        const buffer = await payload.blob.arrayBuffer();
+        await loadFromArrayBuffer(buffer, payload.name, { skipExtensionCheck: !payload.name });
+        return;
+      }
+      if (payload.file instanceof File) {
+        const buffer = await payload.file.arrayBuffer();
+        await loadFromArrayBuffer(buffer, payload.file.name);
+        return;
+      }
+      if (payload.arrayBuffer instanceof ArrayBuffer) {
+        await loadFromArrayBuffer(payload.arrayBuffer, payload.name, { skipExtensionCheck: !payload.name });
+        return;
+      }
+      if (payload.encoding === "base64" && payload.data) {
+        const buffer = decodeBase64ToArrayBuffer(payload.data);
+        await loadFromArrayBuffer(buffer, payload.name, { skipExtensionCheck: !payload.name });
+        return;
+      }
+      if (payload.url) {
+        const response = await fetch(payload.url);
+        const buffer = await response.arrayBuffer();
+        const nameFromUrl = payload.name || payload.url.split("/").pop() || "embedded.3mf";
+        await loadFromArrayBuffer(buffer, nameFromUrl, { skipExtensionCheck: !payload.name });
+      }
+    };
+
+    const handleMessage = async (event) => {
+      if (!allowAny && event.origin !== allowedOrigin) return;
+      if (isParentFrame() && event.source !== window.parent) return;
+      if (!event.data || typeof event.data !== "object") return;
+      const payload = event.data;
+      try {
+        switch (payload.type) {
+          case "load":
+          case "append":
+            await loadFromPayload(payload);
+            break;
+          case "clear":
+            clearScene();
+            break;
+          case "fitView":
+            handleFit();
+            break;
+          case "resetView":
+            handleResetView();
+            break;
+          default:
+            break;
+        }
+      } catch (err) {
+        postToParent({
+          type: "error",
+          message: err?.message || "Failed to process embed command.",
+        });
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    if (!embedReadyRef.current) {
+      postToParent({ type: "ready" });
+      embedReadyRef.current = true;
+    }
+    const requestTimer = window.setTimeout(() => {
+      if (!sceneObject) postToParent({ type: "requestFile" });
+    }, 100);
+
+    return () => {
+      window.clearTimeout(requestTimer);
+      window.removeEventListener("message", handleMessage);
+    };
+  }, [embedConfig, loadFromArrayBuffer, clearScene, handleFit, handleResetView, sceneObject]);
+
+  useEffect(() => {
+    if (!embedConfig.enabled || !embedConfig.src) return;
+    if (embedSrcLoadedRef.current === embedConfig.src) return;
+    embedSrcLoadedRef.current = embedConfig.src;
+    const run = async () => {
+      try {
+        const response = await fetch(embedConfig.src);
+        const buffer = await response.arrayBuffer();
+        const nameFromUrl = embedConfig.src.split("/").pop() || "embedded.3mf";
+        await loadFromArrayBuffer(buffer, nameFromUrl, { skipExtensionCheck: true });
+      } catch (err) {
+        console.error("Failed to load embed src", err);
+      }
+    };
+    run();
+  }, [embedConfig, loadFromArrayBuffer]);
+
   // ---- PAN (FOV/zoom aware) ----
   const panByPixels = useCallback((dxPx, dyPx) => {
     const controls = controlsRef.current;
@@ -1128,11 +1319,11 @@ function ViewerApp() {
     });
   }, []);
 
-  const showSceneTree = showScene && prefs.uiSceneTree;
-  const showBottomBar = showScene && prefs.uiBottomControls;
-  const helpAvailable = showScene && prefs.uiHelperMessage;
+  const showSceneTree = showScene && prefs.uiSceneTree && !isEmbedQuick;
+  const showBottomBar = showScene && prefs.uiBottomControls && !isEmbedQuick;
+  const helpAvailable = showScene && prefs.uiHelperMessage && !isEmbedQuick;
 
-  const pageHeightClass = showScene ? "h-screen" : "min-h-screen";
+  const pageHeightClass = showScene || isEmbedQuick ? "h-screen" : "min-h-screen";
 
 
   const helpItems = isCoarsePointer
@@ -1443,17 +1634,18 @@ function ViewerApp() {
           onChange={handleFileInputChange}
         />
 
-        {showScene && (
+        {showScene && !isEmbedQuick && (
           <ViewerHud
             showScene={showScene}
             fps={fps}
             helpButtonRef={helpButtonRef}
             onBackToStart={clearScene}
+            hidden={isEmbedQuick}
           />
         )}
 
 
-        {((!showScene) || dragActive) && (
+        {((!showScene) || dragActive) && !isEmbedQuick && (
           <ViewerHome
             showScene={showScene}
             dragActive={dragActive}
@@ -1493,9 +1685,10 @@ function ViewerApp() {
           onSelectFile={() => fileInputRef.current?.click()}
           sceneMetadata={sceneData?.metadata}
           onUpdateSpecifications={checkSpecifications}
+          hideSceneTree={isEmbedQuick}
         />
 
-        {helpAvailable && helpCardOpen && (
+        {helpAvailable && helpCardOpen && !isEmbedQuick && (
           <div className="pointer-events-none fixed right-3 top-24 z-40 sm:top-28">
             <div
               ref={helpCardRef}
@@ -1531,107 +1724,111 @@ function ViewerApp() {
           showTabletDock={showBottomBar && showTouchTabletFull}
           showTouchFab={showBottomBar && showTouchFab}
           controls={viewerControls}
+          minimal={isEmbedQuick}
         />
 
-        <Modal
-          open={diagnosticsNoticeOpen && !!diagnosticsNotice}
-          title="Import issues detected"
-          subtitle="Some diagnostics reported errors while reading this 3MF."
-          onClose={() => setDiagnosticsNoticeOpen(false)}
-          footer={
-            <button
-              onClick={() => setDiagnosticsNoticeOpen(false)}
-              className="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-slate-800"
+        {!isEmbedQuick && (
+          <>
+            <Modal
+              open={diagnosticsNoticeOpen && !!diagnosticsNotice}
+              title="Import issues detected"
+              subtitle="Some diagnostics reported errors while reading this 3MF."
+              onClose={() => setDiagnosticsNoticeOpen(false)}
+              footer={
+                <button
+                  onClick={() => setDiagnosticsNoticeOpen(false)}
+                  className="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-slate-800"
+                >
+                  Got it
+                </button>
+              }
             >
-              Got it
-            </button>
-          }
-        >
-          {diagnosticsNotice ? (
-            <div className="space-y-4 text-sm text-slate-600">
-              <p>
-                {`While importing ${diagnosticsNotice.fileName || "this model"}, lib3mf reported ${diagnosticsNotice.errors.toLocaleString()} error${diagnosticsNotice.errors === 1 ? "" : "s"
-                  }.`}
-              </p>
-              <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4">
-                <div className="text-[0.75rem] font-semibold uppercase tracking-wide text-rose-600">
-                  Errors detected
-                </div>
-                <div className="mt-1 text-2xl font-semibold text-rose-700">
-                  {diagnosticsNotice.errors.toLocaleString()}
-                </div>
-                <p className="mt-2 text-[0.75rem] text-rose-600">
-                  Portions of the scene or metadata may be incomplete or unreliable.
-                </p>
-              </div>
-              {diagnosticsNotice.warnings > 0 ? (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
-                  <div className="text-[0.75rem] font-semibold uppercase tracking-wide text-amber-600">
-                    Warnings detected
-                  </div>
-                  <div className="mt-1 text-2xl font-semibold text-amber-700">
-                    {diagnosticsNotice.warnings.toLocaleString()}
-                  </div>
-                  <p className="mt-2 text-[0.75rem] text-amber-700">
-                    Review the diagnostics tab to see the most common warning groups.
+              {diagnosticsNotice ? (
+                <div className="space-y-4 text-sm text-slate-600">
+                  <p>
+                    {`While importing ${diagnosticsNotice.fileName || "this model"}, lib3mf reported ${diagnosticsNotice.errors.toLocaleString()} error${diagnosticsNotice.errors === 1 ? "" : "s"
+                      }.`}
                   </p>
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4">
+                    <div className="text-[0.75rem] font-semibold uppercase tracking-wide text-rose-600">
+                      Errors detected
+                    </div>
+                    <div className="mt-1 text-2xl font-semibold text-rose-700">
+                      {diagnosticsNotice.errors.toLocaleString()}
+                    </div>
+                    <p className="mt-2 text-[0.75rem] text-rose-600">
+                      Portions of the scene or metadata may be incomplete or unreliable.
+                    </p>
+                  </div>
+                  {diagnosticsNotice.warnings > 0 ? (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
+                      <div className="text-[0.75rem] font-semibold uppercase tracking-wide text-amber-600">
+                        Warnings detected
+                      </div>
+                      <div className="mt-1 text-2xl font-semibold text-amber-700">
+                        {diagnosticsNotice.warnings.toLocaleString()}
+                      </div>
+                      <p className="mt-2 text-[0.75rem] text-amber-700">
+                        Review the diagnostics tab to see the most common warning groups.
+                      </p>
+                    </div>
+                  ) : null}
+                  <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 text-[0.8rem] leading-relaxed">
+                    <p className="font-semibold text-slate-700">Next steps</p>
+                    <ul className="mt-2 space-y-1 text-slate-600">
+                      <li className="flex items-start gap-2">
+                        <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-300" />
+                        <span>Open the Diagnostics tab to review grouped issues and affected resources.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-300" />
+                        <span>Consider validating the source 3MF in your authoring tool before re-exporting.</span>
+                      </li>
+                    </ul>
+                  </div>
                 </div>
               ) : null}
-              <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 text-[0.8rem] leading-relaxed">
-                <p className="font-semibold text-slate-700">Next steps</p>
-                <ul className="mt-2 space-y-1 text-slate-600">
-                  <li className="flex items-start gap-2">
-                    <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-300" />
-                    <span>Open the Diagnostics tab to review grouped issues and affected resources.</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-300" />
-                    <span>Consider validating the source 3MF in your authoring tool before re-exporting.</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          ) : null}
-        </Modal>
+            </Modal>
 
-        {/* Scene Preferences Modal */}
-        <Modal
-          open={openPrefs}
-          title="Scene Preferences"
-          subtitle="Adjust background, lighting, helpers. Changes apply immediately."
-          onClose={() => setOpenPrefs(false)}
-          footer={
-            <button
-              onClick={restorePrefs}
-              className="rounded-md bg-slate-800 text-white px-3 py-1.5 text-sm hover:bg-slate-700"
+            <Modal
+              open={openPrefs}
+              title="Scene Preferences"
+              subtitle="Adjust background, lighting, helpers. Changes apply immediately."
+              onClose={() => setOpenPrefs(false)}
+              footer={
+                <button
+                  onClick={restorePrefs}
+                  className="rounded-md bg-slate-800 text-white px-3 py-1.5 text-sm hover:bg-slate-700"
+                >
+                  Restore defaults
+                </button>
+              }
             >
-              Restore defaults
-            </button>
-          }
-        >
-          <ScenePreferences prefs={prefs} onChange={setPrefs} />
-        </Modal>
+              <ScenePreferences prefs={prefs} onChange={setPrefs} />
+            </Modal>
 
-        <Modal
-          open={openReleaseNotes}
-          title={`Release Notes – v${appVersion}`}
-          subtitle={releaseNotesTimelineOpen ? "Full release history" : "What’s new in this build"}
-          onClose={() => {
-            setOpenReleaseNotes(false);
-            setReleaseNotesTimelineOpen(false);
-          }}
-          size="lg"
-        >
-          <ReleaseNotesModal
-            title={`Version v${appVersion}`}
-            subtitle={releaseNotesTimelineOpen ? "All release entries" : "Highlights"}
-            currentVersion={`v${appVersion}`}
-            currentNotes={currentNotes}
-            releaseNotes={releaseNotes}
-            showTimeline={releaseNotesTimelineOpen}
-            onToggleTimeline={() => setReleaseNotesTimelineOpen((prev) => !prev)}
-          />
-        </Modal>
+            <Modal
+              open={openReleaseNotes}
+              title={`Release Notes – v${appVersion}`}
+              subtitle={releaseNotesTimelineOpen ? "Full release history" : "What’s new in this build"}
+              onClose={() => {
+                setOpenReleaseNotes(false);
+                setReleaseNotesTimelineOpen(false);
+              }}
+              size="lg"
+            >
+              <ReleaseNotesModal
+                title={`Version v${appVersion}`}
+                subtitle={releaseNotesTimelineOpen ? "All release entries" : "Highlights"}
+                currentVersion={`v${appVersion}`}
+                currentNotes={currentNotes}
+                releaseNotes={releaseNotes}
+                showTimeline={releaseNotesTimelineOpen}
+                onToggleTimeline={() => setReleaseNotesTimelineOpen((prev) => !prev)}
+              />
+            </Modal>
+          </>
+        )}
       </div>
     </div>
   );

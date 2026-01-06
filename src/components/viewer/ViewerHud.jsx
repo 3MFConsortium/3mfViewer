@@ -7,7 +7,9 @@ export function ViewerHud({
   fps,
   helpButtonRef,
   onBackToStart,
+  hidden = false,
 }) {
+  if (hidden) return null;
   const showSceneTree = useViewerStore((state) => state.prefs.uiSceneTree);
   const showStats = useViewerStore((state) => state.prefs.showStats);
   const mobileNavOpen = useViewerStore((state) => state.ui.mobileNavOpen);
