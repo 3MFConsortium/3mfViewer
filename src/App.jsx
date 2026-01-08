@@ -11,13 +11,15 @@ import * as THREE from "three";
 
 import { Modal } from "./components/ui/Modal.jsx";
 import { ScenePreferences } from "./components/ui/ScenePreferences.jsx";
+import { SceneTree } from "./components/ui/SceneTree.jsx";
 import { IconClose } from "./components/ui/Icons.jsx";
 import { useRafFps } from "./hooks/useRafFps.js";
 import releaseNotes from "./release-notes.json" with { type: "json" };
 import { ReleaseNotesModal } from "./components/ui/ReleaseNotesModal.jsx";
 import { ThreeMFLoaderProvider } from "./components/loaders/ThreeMFLoader.jsx";
 import { useThreeMFLoader } from "./components/loaders/ThreeMFLoaderContext.js";
-import { useViewerStore } from "./stores/viewerStore.js";
+import { useViewerStore, DEFAULT_PREFS_LIGHT, DEFAULT_PREFS_DARK } from "./stores/viewerStore.js";
+import { ThemeProvider, useTheme } from "./contexts/ThemeContext.jsx";
 import { ViewerHome } from "./components/home/ViewerHome.jsx";
 import { ViewerHud } from "./components/viewer/ViewerHud.jsx";
 import { ViewerScene } from "./components/viewer/ViewerScene.jsx";
@@ -121,6 +123,7 @@ function ViewerApp() {
   const loadError = useViewerStore((state) => state.viewer.loadError);
   const loadedName = useViewerStore((state) => state.viewer.loadedName);
   const dragActive = useViewerStore((state) => state.viewer.dragActive);
+  const renderReady = useViewerStore((state) => state.viewer.renderReady);
   const showScene = !!sceneObject;
   const prefs = useViewerStore((state) => state.prefs);
   const openPrefs = useViewerStore((state) => state.ui.openPrefs);
@@ -155,6 +158,7 @@ function ViewerApp() {
   const setDiagnosticsNoticeOpen = useViewerStore((state) => state.setDiagnosticsNoticeOpen);
   const setOpenReleaseNotes = useViewerStore((state) => state.setOpenReleaseNotes);
   const setReleaseNotesTimelineOpen = useViewerStore((state) => state.setReleaseNotesTimelineOpen);
+  const mobileNavOpen = useViewerStore((state) => state.ui.mobileNavOpen);
   const resetTransientUi = useViewerStore((state) => state.resetTransientUi);
   const resetTransientSpecs = useViewerStore((state) => state.resetTransientSpecs);
   const dragDepthRef = useRef(0);
@@ -186,6 +190,29 @@ function ViewerApp() {
   const toggleHelpCard = useViewerStore((state) => state.toggleHelpCard);
   const tabletDockCollapsed = useViewerStore((state) => state.ui.tabletDockCollapsed);
   const setTabletDockCollapsed = useViewerStore((state) => state.setTabletDockCollapsed);
+
+  // Theme integration
+  const { isDark, effectiveTheme } = useTheme();
+
+  // Sync scene colors and lighting with theme when syncWithTheme is enabled
+  useEffect(() => {
+    if (!prefs.syncWithTheme) return;
+    const themePrefs = isDark ? DEFAULT_PREFS_DARK : DEFAULT_PREFS_LIGHT;
+    setPrefs((p) => ({
+      ...p,
+      // Colors
+      background: themePrefs.background,
+      hemiSkyColor: themePrefs.hemiSkyColor,
+      hemiGroundColor: themePrefs.hemiGroundColor,
+      rimColor: themePrefs.rimColor,
+      edgeColor: themePrefs.edgeColor,
+      // Lighting intensities
+      ambient: themePrefs.ambient,
+      hemiIntensity: themePrefs.hemiIntensity,
+      rimIntensity: themePrefs.rimIntensity,
+    }));
+  }, [isDark, prefs.syncWithTheme, setPrefs]);
+
   const handleSelectNode = useCallback(
     (node) => {
       setSelectedNode(node);
@@ -1343,8 +1370,8 @@ function ViewerApp() {
   const pageBackgroundClass = isEmbedTransparent
     ? "bg-transparent"
     : dragActive
-    ? "bg-sky-50"
-    : "bg-slate-50";
+    ? "bg-accent-subtle"
+    : "bg-background";
 
 
   const helpItems = isCoarsePointer
@@ -1405,13 +1432,13 @@ function ViewerApp() {
     : "Or drop a .3mf anywhere in this window.";
 
   const homeBackgroundClass = dragActive
-    ? "bg-gradient-to-br from-sky-50 via-sky-100 to-white text-slate-800"
-    : "bg-gradient-to-br from-white via-slate-50 to-sky-50 text-slate-800";
+    ? "bg-gradient-to-br from-accent-subtle via-accent-subtle/50 to-background text-text-primary"
+    : "bg-gradient-to-br from-background via-surface to-accent-subtle/30 text-text-primary";
 
   const browseButtonClass =
     loadStatus === "loading"
-      ? "cursor-progress bg-white/30 text-white/70"
-      : "bg-gradient-to-r from-sky-500 via-sky-600 to-violet-500 text-white shadow-sky-500/30 ring-1 ring-sky-500/40 hover:from-sky-600 hover:via-sky-700 hover:to-violet-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500";
+      ? "cursor-progress bg-surface-elevated/30 text-text-muted"
+      : "bg-gradient-to-r from-accent via-accent-hover to-success text-accent-foreground shadow-lg shadow-accent/30 ring-1 ring-accent/40 hover:from-accent-hover hover:via-accent hover:to-success focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
   const progressPercent = loadProgress?.totalTriangles
     ? Math.min(100, Math.round((loadProgress.triangles / loadProgress.totalTriangles) * 100))
@@ -1605,57 +1632,71 @@ function ViewerApp() {
     <div
       className={`relative ${pageHeightClass} w-full overflow-x-hidden transition-colors duration-200 ${pageBackgroundClass}`}
     >
-      {loadStatus === "loading" && (
+      {/* Loading overlay - shown during loading AND until first frame is rendered */}
+      {(loadStatus === "loading" || (loadStatus === "ready" && !renderReady)) && (
         <div
           className="fixed inset-0 z-50"
           onWheel={(event) => event.preventDefault()}
           onTouchMove={(event) => event.preventDefault()}
         >
-          <div className="absolute inset-0 bg-white/30 backdrop-blur-[2px]" />
-          <div className="absolute inset-0 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-background/30 backdrop-blur-[2px]" />
+          {/* Offset left on desktop when sidenav is visible - only for "rendering" phase, not file loading */}
+          <div className={`absolute inset-0 flex items-center justify-center px-6 ${loadStatus === "ready" && !isEmbedQuick && prefs.uiSceneTree ? "lg:left-72" : ""}`}>
             {isEmbedQuick ? (
-              <div className="pointer-events-none w-full max-w-[min(90vw,320px)] rounded-2xl bg-white/90 px-5 py-4 text-center shadow-xl ring-1 ring-slate-200">
-                <div className="mx-auto h-9 w-9 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700" />
-                <div className="mt-3 text-sm font-semibold text-slate-800">{progressLabel}</div>
-                <div className="mt-1 text-[0.7rem] text-slate-500">{progressSubLabel}</div>
-                {loadStage?.stage ? (
-                  <div className="mt-1 text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+              <div className="pointer-events-none w-full max-w-[min(90vw,320px)] rounded-2xl glass-elevated px-5 py-4 text-center shadow-xl">
+                <div className="mx-auto h-9 w-9 animate-spin rounded-full border-2 border-border border-t-accent" />
+                <div className="mt-3 text-sm font-semibold text-text-primary">
+                  {loadStatus === "ready" ? "Rendering…" : progressLabel}
+                </div>
+                <div className="mt-1 text-[0.7rem] text-text-secondary">
+                  {loadStatus === "ready" ? "Preparing scene" : progressSubLabel}
+                </div>
+                {loadStage?.stage && loadStatus === "loading" ? (
+                  <div className="mt-1 text-[0.6rem] uppercase tracking-[0.25em] text-text-muted">
                     Stage {loadStage.stage.replace(/-/g, " ")}
                   </div>
                 ) : null}
               </div>
             ) : (
-              <div className="pointer-events-none w-full max-w-lg rounded-3xl bg-white/95 px-6 py-5 text-center shadow-2xl ring-1 ring-slate-200">
-                <div className="text-sm font-semibold text-slate-800">{progressLabel}</div>
-                <div className="mt-1 text-xs text-slate-500">{progressSubLabel}</div>
-                {loadStage?.stage ? (
-                  <div className="mt-1 text-[0.6rem] uppercase tracking-[0.25em] text-slate-400">
+              <div className="pointer-events-none w-full max-w-lg rounded-3xl glass-elevated px-6 py-5 text-center shadow-2xl">
+                <div className="text-sm font-semibold text-text-primary">
+                  {loadStatus === "ready" ? "Rendering scene…" : progressLabel}
+                </div>
+                <div className="mt-1 text-xs text-text-secondary">
+                  {loadStatus === "ready" ? "Compiling shaders and uploading to GPU" : progressSubLabel}
+                </div>
+                {loadStage?.stage && loadStatus === "loading" ? (
+                  <div className="mt-1 text-[0.6rem] uppercase tracking-[0.25em] text-text-muted">
                     Stage {loadStage.stage.replace(/-/g, " ")}
                   </div>
                 ) : null}
-                <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-surface">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-sky-500 via-sky-600 to-violet-500 transition-all"
-                    style={{ width: `${progressPercent ?? 5}%` }}
+                    className="h-full rounded-full bg-gradient-to-r from-accent via-accent-hover to-success transition-all"
+                    style={{ width: loadStatus === "ready" ? "100%" : `${progressPercent ?? 5}%` }}
                   />
                 </div>
-                <div className="mt-2 text-[0.7rem] text-slate-500">
-                  {progressPercent !== null
-                    ? `${progressPercent}% • ${loadProgress?.triangles?.toLocaleString() ?? 0} / ${loadProgress?.totalTriangles?.toLocaleString() ?? 0} tri`
-                    : "Building geometry…"}
+                <div className="mt-2 text-[0.7rem] text-text-secondary">
+                  {loadStatus === "ready"
+                    ? "Almost there…"
+                    : progressPercent !== null
+                      ? `${progressPercent}% • ${loadProgress?.triangles?.toLocaleString() ?? 0} / ${loadProgress?.totalTriangles?.toLocaleString() ?? 0} tri`
+                      : "Building geometry…"}
                 </div>
-                <div className="mt-1 text-[0.65rem] text-slate-400">
-                  Elapsed {elapsedLabel}
-                  {rateLabel ? ` • ${rateLabel}` : ""}
-                  {lastUpdateLabel ? ` • Last update ${lastUpdateLabel} ago` : ""}
-                </div>
+                {loadStatus === "loading" && (
+                  <div className="mt-1 text-[0.65rem] text-text-muted">
+                    Elapsed {elapsedLabel}
+                    {rateLabel ? ` • ${rateLabel}` : ""}
+                    {lastUpdateLabel ? ` • Last update ${lastUpdateLabel} ago` : ""}
+                  </div>
+                )}
               </div>
             )}
           </div>
         </div>
       )}
       <div className={`pointer-events-none absolute inset-0 transition-opacity duration-150 ${dragActive ? 'opacity-100' : 'opacity-0'}`}>
-        <div className="absolute inset-0 bg-sky-300/10 backdrop-blur-[2px]" />
+        <div className="absolute inset-0 bg-accent/10 backdrop-blur-[2px]" />
       </div>
       <div className={`relative z-20 ${pageHeightClass} w-full`}>
         <input
@@ -1666,6 +1707,81 @@ function ViewerApp() {
           onChange={handleFileInputChange}
         />
 
+        {/* Canvas - Positioned to respect sidenav and navbar */}
+        <div className={`absolute inset-0 top-14 ${showScene && !isEmbedQuick && prefs.uiSceneTree ? "lg:left-72" : ""}`}>
+          <ViewerScene
+            showScene={showScene}
+            initialCamPos={initialCamPos}
+            initialTarget={initialTarget}
+            controlsRef={controlsRef}
+            cameraRef={cameraRef}
+            rendererRef={rendererRef}
+            setCanvasElement={setCanvasElement}
+            contentRef={contentRef}
+            groundY={groundY}
+            transparentBackground={isEmbedTransparent}
+          />
+        </div>
+
+        {/* Sidenav - Desktop only, full height with logo */}
+        {showScene && !isEmbedQuick && prefs.uiSceneTree && (
+          <aside className="hidden lg:flex flex-col fixed left-0 top-0 bottom-0 w-72 border-r border-border bg-surface-elevated z-30">
+            {/* Logo header - same height as navbar (py-2.5) */}
+            <div className="flex items-center justify-center border-b-2 border-border px-4 py-2.5">
+              <button
+                type="button"
+                onClick={clearScene}
+                className="inline-flex items-center rounded-full p-1 transition hover:bg-surface"
+                aria-label="Return to home"
+              >
+                <img
+                  src="/3mf_logo.png"
+                  alt="3MF"
+                  className="h-7 w-auto select-none dark-invert"
+                  draggable={false}
+                />
+              </button>
+            </div>
+            <SceneTree
+              items={treeItems}
+              onSelectFile={handleLoadFile}
+              loadStatus={loadStatus}
+              fileName={loadedName}
+              errorMessage={loadError}
+              metadata={sceneData?.metadata}
+              onSelectNode={setSelectedNode}
+              selectedNodeId={selectedNodeId}
+              selectedInfo={selectedNodeInfo}
+              onToggleMeshVisibility={toggleMeshVisibility}
+              hiddenMeshIds={hiddenMeshIds}
+              onUpdateSpecifications={checkSpecifications}
+            />
+          </aside>
+        )}
+
+        {/* Mobile drawer */}
+        {showScene && !isEmbedQuick && prefs.uiSceneTree && (
+          <SceneTree
+            items={treeItems}
+            onSelectFile={handleLoadFile}
+            loadStatus={loadStatus}
+            fileName={loadedName}
+            errorMessage={loadError}
+            metadata={sceneData?.metadata}
+            variant="drawer"
+            open={mobileNavOpen}
+            onClose={() => setMobileNavOpen(false)}
+            className="lg:hidden"
+            onSelectNode={setSelectedNode}
+            selectedNodeId={selectedNodeId}
+            selectedInfo={selectedNodeInfo}
+            onToggleMeshVisibility={toggleMeshVisibility}
+            hiddenMeshIds={hiddenMeshIds}
+            onUpdateSpecifications={checkSpecifications}
+          />
+        )}
+
+        {/* HUD and overlays */}
         {showScene && !isEmbedQuick && (
           <ViewerHud
             showScene={showScene}
@@ -1673,68 +1789,37 @@ function ViewerApp() {
             helpButtonRef={helpButtonRef}
             onBackToStart={clearScene}
             hidden={isEmbedQuick}
+            hasSidenav={prefs.uiSceneTree}
           />
         )}
 
-
-        {((!showScene) || dragActive) && !isEmbedQuick && (
+        {((!showScene && loadStatus !== "loading") || dragActive) && !isEmbedQuick && (
           <ViewerHome
-            showScene={showScene}
             dragActive={dragActive}
-            backgroundClass={homeBackgroundClass}
-            heroHeading={heroHeading}
-            heroSubtext={heroSubtext}
-            dropHint={dropHint}
-            browseButtonClass={browseButtonClass}
             loadStatus={loadStatus}
             onBrowseClick={handleBrowseClick}
             sampleModels={sampleModels}
             sampleLoading={sampleLoading}
             sampleError={sampleError}
             onLoadSample={handleLoadSample}
-            upcomingCards={upcomingCards}
-            renderingRoadmap={renderingRoadmap}
-            getStatusMeta={getStatusMeta}
-            onOpenReleaseNotes={() => setOpenReleaseNotes(true)}
-            appVersion={appVersion}
+            version={appVersion}
           />
         )}
-
-
-        <ViewerScene
-          showScene={showScene}
-          initialCamPos={initialCamPos}
-          initialTarget={initialTarget}
-          controlsRef={controlsRef}
-          cameraRef={cameraRef}
-          rendererRef={rendererRef}
-          setCanvasElement={setCanvasElement}
-          contentRef={contentRef}
-          groundSize={groundSize}
-          groundY={groundY}
-          gridDivisions={gridDivisions}
-          treeItems={treeItems}
-          onSelectFile={handleLoadFile}
-          sceneMetadata={sceneData?.metadata}
-          onUpdateSpecifications={checkSpecifications}
-          hideSceneTree={isEmbedQuick}
-          transparentBackground={isEmbedTransparent}
-        />
 
         {helpAvailable && helpCardOpen && !isEmbedQuick && (
           <div className="pointer-events-none fixed right-3 top-24 z-40 sm:top-28">
             <div
               ref={helpCardRef}
-              className="pointer-events-auto w-64 rounded-2xl bg-white/95 p-4 text-sm text-slate-600 shadow-2xl ring-1 ring-slate-200"
+              className="pointer-events-auto w-64 rounded-2xl glass-elevated p-4 text-sm text-text-secondary shadow-2xl"
             >
               <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                   Viewer tips
                 </p>
                 <button
                   type="button"
                   aria-label="Close viewer tips"
-                  className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                  className="rounded-full p-1 text-text-muted transition hover:bg-surface hover:text-text-secondary"
                   onClick={() => setHelpCardOpen(false)}
                 >
                   <IconClose />
@@ -1742,8 +1827,8 @@ function ViewerApp() {
               </div>
               <ul className="space-y-1.5">
                 {helpItems.map((item, index) => (
-                  <li key={index} className="flex items-start gap-2 text-xs text-slate-600">
-                    <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-400" />
+                  <li key={index} className="flex items-start gap-2 text-xs text-text-secondary">
+                    <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-text-muted" />
                     <span>{item}</span>
                   </li>
                 ))}
@@ -1758,6 +1843,7 @@ function ViewerApp() {
           showTouchFab={showBottomBar && showTouchFab}
           controls={viewerControls}
           minimal={isEmbedQuick}
+          hasSidenav={showScene && !isEmbedQuick && prefs.uiSceneTree}
         />
 
         {!isEmbedQuick && (
@@ -1770,51 +1856,51 @@ function ViewerApp() {
               footer={
                 <button
                   onClick={() => setDiagnosticsNoticeOpen(false)}
-                  className="inline-flex items-center rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-slate-800"
+                  className="inline-flex items-center rounded-full bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground shadow transition hover:bg-accent-hover"
                 >
                   Got it
                 </button>
               }
             >
               {diagnosticsNotice ? (
-                <div className="space-y-4 text-sm text-slate-600">
+                <div className="space-y-4 text-sm text-text-secondary">
                   <p>
                     {`While importing ${diagnosticsNotice.fileName || "this model"}, lib3mf reported ${diagnosticsNotice.errors.toLocaleString()} error${diagnosticsNotice.errors === 1 ? "" : "s"
                       }.`}
                   </p>
-                  <div className="rounded-2xl border border-rose-200 bg-rose-50/80 p-4">
-                    <div className="text-[0.75rem] font-semibold uppercase tracking-wide text-rose-600">
+                  <div className="rounded-2xl border border-error/30 bg-error-subtle p-4">
+                    <div className="text-[0.75rem] font-semibold uppercase tracking-wide text-error">
                       Errors detected
                     </div>
-                    <div className="mt-1 text-2xl font-semibold text-rose-700">
+                    <div className="mt-1 text-2xl font-semibold text-error">
                       {diagnosticsNotice.errors.toLocaleString()}
                     </div>
-                    <p className="mt-2 text-[0.75rem] text-rose-600">
+                    <p className="mt-2 text-[0.75rem] text-error">
                       Portions of the scene or metadata may be incomplete or unreliable.
                     </p>
                   </div>
                   {diagnosticsNotice.warnings > 0 ? (
-                    <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4">
-                      <div className="text-[0.75rem] font-semibold uppercase tracking-wide text-amber-600">
+                    <div className="rounded-2xl border border-warning/30 bg-warning-subtle p-4">
+                      <div className="text-[0.75rem] font-semibold uppercase tracking-wide text-warning">
                         Warnings detected
                       </div>
-                      <div className="mt-1 text-2xl font-semibold text-amber-700">
+                      <div className="mt-1 text-2xl font-semibold text-warning">
                         {diagnosticsNotice.warnings.toLocaleString()}
                       </div>
-                      <p className="mt-2 text-[0.75rem] text-amber-700">
+                      <p className="mt-2 text-[0.75rem] text-warning">
                         Review the diagnostics tab to see the most common warning groups.
                       </p>
                     </div>
                   ) : null}
-                  <div className="rounded-2xl border border-slate-200 bg-white/90 p-4 text-[0.8rem] leading-relaxed">
-                    <p className="font-semibold text-slate-700">Next steps</p>
-                    <ul className="mt-2 space-y-1 text-slate-600">
+                  <div className="rounded-2xl border border-border bg-surface-elevated p-4 text-[0.8rem] leading-relaxed">
+                    <p className="font-semibold text-text-primary">Next steps</p>
+                    <ul className="mt-2 space-y-1 text-text-secondary">
                       <li className="flex items-start gap-2">
-                        <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-300" />
+                        <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-text-muted" />
                         <span>Open the Diagnostics tab to review grouped issues and affected resources.</span>
                       </li>
                       <li className="flex items-start gap-2">
-                        <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-slate-300" />
+                        <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-text-muted" />
                         <span>Consider validating the source 3MF in your authoring tool before re-exporting.</span>
                       </li>
                     </ul>
@@ -1831,7 +1917,7 @@ function ViewerApp() {
               footer={
                 <button
                   onClick={restorePrefs}
-                  className="rounded-md bg-slate-800 text-white px-3 py-1.5 text-sm hover:bg-slate-700"
+                  className="rounded-md bg-surface-elevated text-text-secondary border border-border px-3 py-1.5 text-sm hover:bg-surface hover:text-text-primary transition"
                 >
                   Restore defaults
                 </button>
@@ -1939,9 +2025,11 @@ function ViewerBootstrap() {
 
 export default function App() {
   return (
-    <ThreeMFLoaderProvider>
-      <ViewerBootstrap />
-    </ThreeMFLoaderProvider>
+    <ThemeProvider>
+      <ThreeMFLoaderProvider>
+        <ViewerBootstrap />
+      </ThreeMFLoaderProvider>
+    </ThemeProvider>
   );
 }
 

@@ -11,13 +11,14 @@ export function ViewerOverlays({
   showTouchFab,
   controls,
   minimal = false,
+  hasSidenav = false,
 }) {
   if (minimal) {
     return (
       <>
         <SliceSlider position="bottom" />
         <div className="pointer-events-none fixed right-3 top-3 z-40">
-          <div className="group pointer-events-auto flex min-w-[2.2rem] items-center justify-center gap-0 rounded-full border border-slate-900/20 bg-white/85 px-2 py-1 text-[0.55rem] font-semibold uppercase tracking-[0.2em] text-slate-600 shadow-md backdrop-blur">
+          <div className="group pointer-events-auto flex min-w-[2.2rem] items-center justify-center gap-0 rounded-full border border-border bg-surface-elevated/85 px-2 py-1 text-[0.55rem] font-semibold uppercase tracking-[0.2em] text-text-secondary shadow-md backdrop-blur">
             <img src="/3mf_logo.png" alt="3MF" className="h-3.5 w-auto" />
             <span className="max-w-0 overflow-hidden whitespace-nowrap pl-0 opacity-0 transition-all duration-200 group-hover:max-w-xs group-hover:pl-2 group-hover:opacity-100">
               Powered by 3MF Consortium
@@ -59,6 +60,7 @@ export function ViewerOverlays({
       edgesOn={controls.edgesOn}
       onToggleWireframe={controls.onToggleWireframe}
       onToggleEdges={controls.onToggleEdges}
+      hasSidenav={hasSidenav}
       {...extraProps}
     />
     );
@@ -73,7 +75,7 @@ export function ViewerOverlays({
       {showTabletDock && (
         <>
           {!tabletDockCollapsed ? (
-            <div className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
+            <div className={`fixed left-0 right-0 bottom-4 z-50 flex justify-center px-4 ${hasSidenav ? "lg:left-72" : ""}`}>
               <div className="pointer-events-auto w-full max-w-3xl">
                 {renderBottomControls({
                   position: "static",
@@ -82,7 +84,7 @@ export function ViewerOverlays({
                     <button
                       type="button"
                       aria-label="Hide controls"
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-white/95 text-slate-500 ring-1 ring-white/40 transition hover:bg-white"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-surface-elevated/95 text-text-muted ring-1 ring-border/40 transition hover:bg-surface-elevated"
                       onClick={toggleTabletDock}
                     >
                       <IconClose />
@@ -100,7 +102,7 @@ export function ViewerOverlays({
                 <button
                   type="button"
                   aria-label="Show viewer controls"
-                  className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/95 text-white shadow-xl ring-1 ring-white/10 transition hover:bg-slate-900"
+                  className="flex h-12 w-12 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-xl ring-1 ring-accent-hover/30 transition hover:bg-accent-hover"
                   onClick={toggleTabletDock}
                 >
                   <IconDock />
@@ -122,7 +124,7 @@ export function ViewerOverlays({
                 type="button"
                 aria-label="Toggle viewer controls"
                 aria-expanded={mobileDockOpen}
-                className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/95 text-white shadow-xl ring-1 ring-white/10 transition hover:bg-slate-900"
+                className="flex h-12 w-12 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-xl ring-1 ring-accent-hover/30 transition hover:bg-accent-hover"
                 onClick={toggleMobileDock}
               >
                 <IconDock />
@@ -131,11 +133,11 @@ export function ViewerOverlays({
           </div>
           {mobileDockOpen && (
             <>
-              <div className="fixed inset-0 z-40 bg-slate-900/30" onClick={() => setMobileDockOpen(false)} />
+              <div className="fixed inset-0 z-40 bg-background/50 backdrop-blur-sm" onClick={() => setMobileDockOpen(false)} />
               <div className="fixed inset-x-0 bottom-24 z-50 flex justify-center px-4">
                 <div className="pointer-events-none flex w-full max-w-lg flex-col items-center gap-3">
                   <div
-                    className={`pointer-events-auto rounded-full bg-white/95 px-4 py-1 text-xs text-slate-600 shadow ring-1 ring-slate-200 ${dockCueActive ? "animate-pulse" : ""
+                    className={`pointer-events-auto rounded-full bg-surface-elevated/95 px-4 py-1 text-xs text-text-secondary shadow ring-1 ring-border ${dockCueActive ? "animate-pulse" : ""
                       }`}
                   >
                     Tap a control below to adjust the scene • Tap outside to close
@@ -160,7 +162,7 @@ export function ViewerOverlays({
               aria-label="Show viewer tips"
               aria-expanded={helpCardOpen}
               onClick={toggleHelpCard}
-              className={`flex h-12 w-12 items-center justify-center rounded-full bg-slate-900/95 text-white shadow-xl ring-1 ring-white/10 transition hover:bg-slate-900 ${helpCardOpen ? "" : "animate-pulse"
+              className={`flex h-12 w-12 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-xl ring-1 ring-accent-hover/30 transition hover:bg-accent-hover ${helpCardOpen ? "" : "animate-pulse"
                 }`}
             >
               <IconQuestion />
@@ -170,13 +172,17 @@ export function ViewerOverlays({
       )}
 
       {loadStatus === "loading" && (
-        <div className="pointer-events-none fixed left-1/2 top-16 -translate-x-1/2 rounded-md bg-amber-100/95 px-3 py-1.5 text-xs text-amber-800 shadow ring-1 ring-amber-200">
-          Loading {loadedName || "3MF"}…
+        <div className={`pointer-events-none fixed left-0 right-0 top-16 z-40 flex justify-center ${hasSidenav ? "lg:left-72" : ""}`}>
+          <div className="rounded-md bg-warning-subtle/95 px-3 py-1.5 text-xs text-warning shadow ring-1 ring-warning/30">
+            Loading {loadedName || "3MF"}…
+          </div>
         </div>
       )}
       {loadStatus === "error" && (
-        <div className="pointer-events-none fixed left-1/2 top-16 -translate-x-1/2 rounded-md bg-rose-100/95 px-3 py-1.5 text-xs text-rose-800 shadow ring-1 ring-rose-200">
-          {loadError || "Failed to load file"}
+        <div className={`pointer-events-none fixed left-0 right-0 top-16 z-40 flex justify-center ${hasSidenav ? "lg:left-72" : ""}`}>
+          <div className="rounded-md bg-error-subtle/95 px-3 py-1.5 text-xs text-error shadow ring-1 ring-error/30">
+            {loadError || "Failed to load file"}
+          </div>
         </div>
       )}
     </>

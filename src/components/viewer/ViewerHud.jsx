@@ -1,6 +1,7 @@
 import React from "react";
 import { useViewerStore } from "../../stores/viewerStore.js";
-import { IconMenu, IconQuestion, IconPrefs } from "../ui/Icons.jsx";
+import { useTheme } from "../../contexts/ThemeContext.jsx";
+import { IconMenu, IconQuestion, IconPrefs, IconSun, IconMoon, IconMonitor } from "../ui/Icons.jsx";
 
 export function ViewerHud({
   showScene,
@@ -8,6 +9,7 @@ export function ViewerHud({
   helpButtonRef,
   onBackToStart,
   hidden = false,
+  hasSidenav = false,
 }) {
   if (hidden) return null;
   const showSceneTree = useViewerStore((state) => state.prefs.uiSceneTree);
@@ -19,20 +21,28 @@ export function ViewerHud({
   const setOpenPrefs = useViewerStore((state) => state.setOpenPrefs);
 
   const helpAvailable = true; // or come from somewhere else if needed
+  const { theme, cycleTheme } = useTheme();
 
   const fpsLabel = Number.isFinite(fps) && fps > 0 ? Math.round(fps) : "--";
 
+  const ThemeIcon = theme === "light" ? IconSun : theme === "dark" ? IconMoon : IconMonitor;
+  const themeLabel = theme === "light" ? "Light mode" : theme === "dark" ? "Dark mode" : "System theme";
+
+  // On desktop with sidenav, navbar and overlays start after sidenav
+  const leftOffset = hasSidenav ? "lg:left-72" : "lg:left-0";
+
   return (
     <>
-      <div className="pointer-events-none fixed inset-x-0 top-0 z-30">
-        <div className="pointer-events-auto flex w-full items-center justify-between border-b border-slate-200/70 bg-white/80 px-4 py-2.5 backdrop-blur-md shadow-md sm:px-6">
-          <div className="flex flex-1 items-center gap-2">
+      <div className={`pointer-events-none fixed left-0 right-0 top-0 z-30 ${leftOffset}`}>
+        <div className="pointer-events-auto flex w-full items-center justify-between lg:justify-end border-b-2 border-border bg-surface-elevated px-4 py-2.5 sm:px-6">
+          {/* Mobile menu button - hidden on desktop */}
+          <div className="flex flex-1 items-center gap-2 lg:hidden">
             {showScene ? (
               <button
                 type="button"
                 aria-label="Open scene navigator"
                 aria-expanded={mobileNavOpen}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white shadow transition hover:bg-slate-800 lg:hidden"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-full bg-accent text-accent-foreground shadow transition hover:bg-accent-hover"
                 onClick={toggleMobileNav}
                 disabled={!showSceneTree}
               >
@@ -41,52 +51,40 @@ export function ViewerHud({
             ) : (
               <span className="h-9 w-9" />
             )}
-
-            {showScene ? (
-              <button
-                type="button"
-                onClick={onBackToStart}
-                className="hidden items-center rounded-full p-1 transition hover:bg-slate-100 lg:flex"
-                aria-label="Return to home"
-              >
-                <img
-                  src="/3mf_logo.png"
-                  alt="3MF"
-                  className="h-6 w-auto select-none opacity-80"
-                  draggable={false}
-                />
-              </button>
-            ) : (
-              <img
-                src="/3mf_logo.png"
-                alt="3MF"
-                className="hidden h-6 w-auto select-none opacity-80 lg:block"
-                draggable={false}
-              />
-            )}
           </div>
 
+          {/* Mobile center logo - hidden on desktop */}
           <div className="flex flex-none items-center justify-center lg:hidden">
             <button
               type="button"
               onClick={onBackToStart}
-              className="inline-flex items-center rounded-full p-1 transition hover:bg-slate-100"
+              className="inline-flex items-center rounded-full p-1 transition hover:bg-surface"
               aria-label="Return to home"
             >
               <img
                 src="/3mf_logo.png"
                 alt="3MF"
-                className="h-6 w-auto select-none opacity-80 sm:h-7"
+                className="h-6 w-auto select-none dark-invert sm:h-7"
                 draggable={false}
               />
             </button>
           </div>
 
-          <div className="flex flex-1 items-center justify-end gap-2">
+          {/* Right buttons */}
+          <div className="flex flex-1 lg:flex-none items-center justify-end gap-2">
+            <button
+              type="button"
+              aria-label={themeLabel}
+              title={themeLabel}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-elevated text-text-secondary shadow-sm ring-1 ring-border transition hover:bg-surface hover:text-text-primary"
+              onClick={cycleTheme}
+            >
+              <ThemeIcon className="w-4 h-4" />
+            </button>
             <button
               type="button"
               aria-label="Open preferences"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white shadow transition hover:bg-slate-800"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-accent-foreground shadow transition hover:bg-accent-hover"
               onClick={() => setOpenPrefs(true)}
             >
               <IconPrefs />
@@ -103,7 +101,7 @@ export function ViewerHud({
             aria-label="Show viewer tips"
             aria-expanded={helpCardOpen}
             onClick={toggleHelpCard}
-            className={`pointer-events-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-slate-900 text-white shadow-xl ring-1 ring-white/10 transition hover:bg-slate-800 ${helpCardOpen ? "" : "animate-pulse"
+            className={`pointer-events-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-surface-elevated text-accent shadow-xl ring-1 ring-border transition hover:bg-surface hover:text-accent-hover ${helpCardOpen ? "" : "animate-pulse"
               }`}
           >
             <IconQuestion />
@@ -112,7 +110,7 @@ export function ViewerHud({
       )}
 
       {showScene && showStats && (
-        <div className="pointer-events-none fixed left-3 bottom-3 z-30 text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-slate-900/60" style={{ textShadow: "0 1px 2px rgba(255, 255, 255, 0.6)" }}>
+        <div className="pointer-events-none fixed right-4 top-16 z-30 text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-text-muted">
           {`${fpsLabel} FPS`}
         </div>
       )}

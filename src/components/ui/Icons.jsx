@@ -7,6 +7,7 @@ import {
   BarChart3,
   Boxes,
   Camera,
+  ChevronLeft,
   ChevronRight,
   Circle,
   Box,
@@ -21,7 +22,11 @@ import {
   Layers,
   Lightbulb,
   Menu,
+  Monitor,
+  Moon,
   MoreHorizontal,
+  PanelLeftClose,
+  PanelLeft,
   Plus,
   RotateCcw,
   Settings,
@@ -49,11 +54,13 @@ export const IconDock = () => <MoreHorizontal className="w-5 h-5" />;
 export const IconHelp = () => <Info className="w-5 h-5" />;
 export const IconHome = () => <Home className="w-5 h-5" />;
 export const IconQuestion = () => <HelpCircle className="w-5 h-5" />;
-export const IconUpload = () => <Upload className="w-5 h-5" />;
+export const IconUpload = ({ className = "w-5 h-5" }) => <Upload className={className} />;
 export const IconExport = () => <FileUp className="w-5 h-5" />;
 export const IconValidate = () => <ShieldCheck className="w-5 h-5" />;
 export const IconVisible = () => <Eye className="w-4 h-4" />;
 export const IconHidden = () => <EyeOff className="w-4 h-4" />;
+export const IconMore = () => <MoreHorizontal className="w-4 h-4" />;
+export const IconInfo = () => <Info className="w-4 h-4" />;
 
 export const IconCaret = ({ open }) => (
   <ChevronRight className={`h-4 w-4 transition-transform duration-200 ${open ? "rotate-90" : ""}`} />
@@ -80,3 +87,14 @@ export const IconArrowLeft  = () => <ArrowLeft className="w-5 h-5" />;
 export const IconArrowRight = () => <ArrowRight className="w-5 h-5" />;
 export const IconArrowUp    = () => <ArrowUp className="w-5 h-5" />;
 export const IconArrowDown  = () => <ArrowDown className="w-5 h-5" />;
+
+// Theme icons
+export const IconSun = ({ className = "w-5 h-5" }) => <Sun className={className} />;
+export const IconMoon = ({ className = "w-5 h-5" }) => <Moon className={className} />;
+export const IconMonitor = ({ className = "w-5 h-5" }) => <Monitor className={className} />;
+
+// Sidenav icons
+export const IconSidebarCollapse = () => <PanelLeftClose className="w-5 h-5" />;
+export const IconSidebarExpand = () => <PanelLeft className="w-5 h-5" />;
+export const IconChevronLeft = () => <ChevronLeft className="w-5 h-5" />;
+export const IconChevronRight = () => <ChevronRight className="w-5 h-5" />;

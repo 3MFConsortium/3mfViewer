@@ -1,5 +1,161 @@
 @import "tailwindcss";
 
+/* ============================================
+   DESIGN TOKENS - Semantic Color System
+   ============================================ */
+
+@theme {
+  /* Background & Surface */
+  --color-background: var(--bg-default);
+  --color-foreground: var(--fg-default);
+  --color-surface: var(--surface-default);
+  --color-surface-elevated: var(--surface-elevated);
+
+  /* Borders */
+  --color-border: var(--border-default);
+  --color-border-subtle: var(--border-subtle);
+
+  /* Text Hierarchy */
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+
+  /* Accent Colors */
+  --color-accent: var(--accent-default);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-subtle: var(--accent-subtle);
+  --color-accent-muted: var(--accent-muted);
+  --color-accent-foreground: var(--accent-foreground);
+
+  /* Status Colors */
+  --color-success: var(--status-success);
+  --color-success-subtle: var(--status-success-subtle);
+  --color-warning: var(--status-warning);
+  --color-warning-subtle: var(--status-warning-subtle);
+  --color-error: var(--status-error);
+  --color-error-subtle: var(--status-error-subtle);
+}
+
+/* ============================================
+   LIGHT THEME (Default)
+   ============================================ */
+
+:root {
+  /* Backgrounds */
+  --bg-default: #ffffff;
+  --fg-default: #0f172a;
+  --surface-default: #f8fafc;
+  --surface-elevated: #ffffff;
+
+  /* Borders - Slightly darker for better visibility */
+  --border-default: #cbd5e1;
+  --border-subtle: #e2e8f0;
+
+  /* Text */
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #94a3b8;
+
+  /* Neutral Accent - Black */
+  --accent-default: #18181b;
+  --accent-hover: #27272a;
+  --accent-subtle: #f4f4f5;
+  --accent-muted: #71717a;
+  --accent-foreground: #ffffff;
+
+  /* Status */
+  --status-success: #10b981;
+  --status-success-subtle: #d1fae5;
+  --status-warning: #f59e0b;
+  --status-warning-subtle: #fef3c7;
+  --status-error: #ef4444;
+  --status-error-subtle: #fee2e2;
+
+  /* Component-specific */
+  --slider-track: rgba(24, 24, 27, 0.15);
+  --slider-thumb: #18181b;
+  --slider-glow: rgba(24, 24, 27, 0.3);
+  --overlay-bg: rgba(15, 23, 42, 0.4);
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(226, 232, 240, 0.8);
+}
+
+/* ============================================
+   DARK THEME
+   ============================================ */
+
+[data-theme="dark"] {
+  /* Backgrounds - Warm dark gray */
+  --bg-default: #171717;
+  --fg-default: #fafafa;
+  --surface-default: #212121;
+  --surface-elevated: #2a2a2a;
+
+  /* Borders */
+  --border-default: #3a3a3a;
+  --border-subtle: #2a2a2a;
+
+  /* Text */
+  --text-primary: #fafafa;
+  --text-secondary: #a3a3a3;
+  --text-muted: #737373;
+
+  /* Accent - Light gray for dark mode */
+  --accent-default: #e5e5e5;
+  --accent-hover: #d4d4d4;
+  --accent-subtle: #262626;
+  --accent-muted: #a3a3a3;
+  --accent-foreground: #171717;
+
+  /* Status - Brighter for dark mode */
+  --status-success: #4ade80;
+  --status-success-subtle: #14532d;
+  --status-warning: #facc15;
+  --status-warning-subtle: #713f12;
+  --status-error: #f87171;
+  --status-error-subtle: #7f1d1d;
+
+  /* Component-specific */
+  --slider-track: rgba(255, 255, 255, 0.15);
+  --slider-thumb: #e5e5e5;
+  --slider-glow: rgba(255, 255, 255, 0.2);
+  --overlay-bg: rgba(0, 0, 0, 0.7);
+  --glass-bg: rgba(33, 33, 33, 0.85);
+  --glass-border: rgba(58, 58, 58, 0.8);
+}
+
+/* ============================================
+   THEME TRANSITION
+   ============================================ */
+
+:root {
+  color-scheme: light;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+/* Smooth transitions for theme changes */
+*,
+*::before,
+*::after {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  transition-duration: 150ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Disable transitions on page load */
+.no-transitions *,
+.no-transitions *::before,
+.no-transitions *::after {
+  transition: none !important;
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
 @keyframes gradient-orbit {
   0% {
     background-position: 0% 50%;
@@ -10,12 +166,6 @@
   100% {
     background-position: 0% 50%;
   }
-}
-
-.gradient-halo {
-  background-image: linear-gradient(120deg, #38bdf8, #a855f7, #6366f1, #38bdf8);
-  background-size: 250% 250%;
-  animation: gradient-orbit 5s ease-in-out infinite;
 }
 
 @keyframes floaty-bubble {
@@ -36,34 +186,63 @@
   }
 }
 
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--accent-default);
+  }
+  50% {
+    box-shadow: 0 0 20px 4px var(--accent-muted);
+  }
+}
+
+/* ============================================
+   COMPONENT CLASSES
+   ============================================ */
+
+/* Gradient halo - Neutral grayscale */
+.gradient-halo {
+  background-image: linear-gradient(120deg, #71717a, #3f3f46, #18181b, #71717a);
+  background-size: 250% 250%;
+  animation: gradient-orbit 5s ease-in-out infinite;
+}
+
+[data-theme="dark"] .gradient-halo {
+  background-image: linear-gradient(120deg, #a1a1aa, #d4d4d8, #fafafa, #a1a1aa);
+}
+
+/* Floating bubble animation */
 .floating-bubble {
   animation: floaty-bubble 18s ease-in-out infinite;
 }
 
+/* Floating chip - Neutral theme */
 .floating-chip {
   display: inline-flex;
   align-items: center;
   border-radius: 9999px;
-  border: 1px solid rgba(59, 130, 246, 0.35);
-  background: linear-gradient(135deg, rgba(56, 189, 248, 0.12), rgba(168, 85, 247, 0.12));
+  border: 1px solid var(--border-default);
+  background: var(--surface-elevated);
   padding: 0.4rem 1rem;
   font-size: 0.68rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   font-weight: 600;
-  color: rgba(37, 99, 235, 0.85);
+  color: var(--text-secondary);
   backdrop-filter: blur(10px);
-  box-shadow: 0 8px 18px -12px rgba(37, 99, 235, 0.55);
+  box-shadow: 0 4px 12px -6px rgba(0, 0, 0, 0.1);
 }
 
 .floating-chip--primary {
-  border-color: rgba(14, 116, 144, 0.35);
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.16), rgba(59, 130, 246, 0.14));
-  color: rgba(14, 116, 144, 0.95);
-  box-shadow: 0 12px 22px -16px rgba(56, 189, 248, 0.6);
+  border-color: var(--accent-default);
+  background: var(--accent-default);
+  color: var(--surface-elevated);
+  box-shadow: 0 4px 12px -4px rgba(0, 0, 0, 0.2);
 }
 
-/* Vertical slice slider styling */
+/* ============================================
+   SLICE SLIDER - Vertical
+   ============================================ */
+
 .slice-slider-vertical {
   -webkit-appearance: none;
   appearance: none;
@@ -73,7 +252,7 @@
 .slice-slider-vertical::-webkit-slider-runnable-track {
   width: 4px;
   height: 100%;
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--slider-track);
   border-radius: 9999px;
 }
 
@@ -82,26 +261,86 @@
   appearance: none;
   width: 14px;
   height: 14px;
-  background: #22d3ee;
+  background: var(--slider-thumb);
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(34, 211, 238, 0.5);
+  box-shadow: 0 2px 6px var(--slider-glow);
   margin-left: -5px;
 }
 
 .slice-slider-vertical::-moz-range-track {
   width: 4px;
   height: 100%;
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--slider-track);
   border-radius: 9999px;
 }
 
 .slice-slider-vertical::-moz-range-thumb {
   width: 14px;
   height: 14px;
-  background: #22d3ee;
+  background: var(--slider-thumb);
   border: none;
   border-radius: 50%;
   cursor: pointer;
-  box-shadow: 0 2px 6px rgba(34, 211, 238, 0.5);
+  box-shadow: 0 2px 6px var(--slider-glow);
+}
+
+/* ============================================
+   DARK MODE IMAGE INVERT
+   ============================================ */
+
+[data-theme="dark"] .dark-invert {
+  filter: invert(1) brightness(1.1);
+}
+
+/* ============================================
+   GLASSMORPHISM UTILITIES
+   ============================================ */
+
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+}
+
+.glass-elevated {
+  background: var(--glass-bg);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--glass-border);
+  box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .glass-elevated {
+  box-shadow: 0 8px 32px -8px rgba(0, 0, 0, 0.4);
+}
+
+/* ============================================
+   SCROLLBAR STYLING
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--surface-default);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-default) var(--surface-default);
 }

@@ -16,6 +16,7 @@ import {
   IconVisible,
   IconHidden,
   IconHelp,
+  IconMore,
 } from "./Icons.jsx";
 import { Modal } from "./Modal.jsx";
 
@@ -132,13 +133,13 @@ function TreeNode({
         onClick={handleSelect}
         className={`group flex items-center gap-2 rounded-lg px-2 py-1.5 transition ${
           hasChildren ? "cursor-pointer" : "cursor-default"
-        } ${isSelected ? "bg-slate-100 ring-1 ring-slate-200" : "hover:bg-slate-100/70"}`}
+        } ${isSelected ? "bg-surface ring-1 ring-border" : "hover:bg-surface/70"}`}
         title={tooltip}
       >
-        <span className="w-5 text-center text-slate-500">
+        <span className="w-5 text-center text-text-muted">
           {hasChildren ? <IconCaret open={isOpen} /> : null}
         </span>
-        <span className="w-5 text-center text-slate-500">{ICONS[node.type] || "•"}</span>
+        <span className="w-5 text-center text-text-muted">{ICONS[node.type] || "•"}</span>
         <span className="text-sm truncate" title={tooltip}>
           {node.name}
         </span>
@@ -146,7 +147,7 @@ function TreeNode({
           <button
             type="button"
             aria-label={hidden ? "Show mesh" : "Hide mesh"}
-            className={`ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full border border-slate-200 bg-white/80 text-slate-600 transition hover:bg-white ${
+            className={`ml-auto inline-flex h-7 w-7 items-center justify-center rounded-full border border-border bg-surface-elevated/80 text-text-secondary transition hover:bg-surface-elevated ${
               hidden ? "opacity-70" : ""
             }`}
             onClick={(event) => {
@@ -159,7 +160,7 @@ function TreeNode({
         )}
       </div>
       {hasChildren && isOpen && (
-        <ul className="pl-6 border-l border-slate-200 ml-4">
+        <ul className="pl-6 border-l border-border ml-4">
           {node.children.map((child) => (
             <TreeNode
               key={child.id}
@@ -230,13 +231,13 @@ export function SceneTree({
     if (loadStatus === "error") return <span className="text-xs text-rose-600">{errorMessage || "Failed to load file"}</span>;
     if (loadStatus === "ready" && fileName) {
       return (
-        <span className="text-xs text-slate-500 truncate" title={fileName}>
+        <span className="text-xs text-text-muted truncate" title={fileName}>
           Loaded: {fileName}
         </span>
       );
     }
     return (
-      <span className="text-xs text-slate-400">
+      <span className="text-xs text-text-muted">
         Drag & drop a .3mf anywhere or use “Load New Data”.
       </span>
     );
@@ -388,18 +389,18 @@ export function SceneTree({
     : [];
 
   const summaryContent = isReady ? (
-    <div className="space-y-6 text-xs text-slate-600">
+    <div className="space-y-6 text-xs text-text-secondary">
       <section className="space-y-3">
-        <div className="text-sm font-semibold text-slate-800">Model snapshot</div>
-        <div className="overflow-hidden rounded-2xl border border-slate-200 shadow-sm">
-          <table className="min-w-full divide-y divide-slate-200 text-sm">
-            <tbody className="bg-white">
+        <div className="text-sm font-semibold text-text-primary">Model snapshot</div>
+        <div className="overflow-hidden rounded-2xl border border-border shadow-sm">
+          <table className="min-w-full divide-y divide-border text-sm">
+            <tbody className="bg-surface-elevated">
               {summaryRows.map((row) => (
-                <tr key={row.label} className="even:bg-slate-50/70">
-                  <th className="w-1/3 px-4 py-3 text-left font-semibold text-slate-600">
+                <tr key={row.label} className="even:bg-surface/70">
+                  <th className="w-1/3 px-4 py-3 text-left font-semibold text-text-secondary">
                     {row.label}
                   </th>
-                  <td className="px-4 py-3 text-right text-slate-800">
+                  <td className="px-4 py-3 text-right text-text-primary">
                     {row.mono ? (
                       <span className="font-mono text-[0.7rem] leading-snug break-all">{row.value}</span>
                     ) : (
@@ -423,14 +424,14 @@ export function SceneTree({
 
       {baseMaterialGroups.length ? (
         <section className="space-y-2">
-          <div className="text-sm font-semibold text-slate-800">Base material groups</div>
+          <div className="text-sm font-semibold text-text-primary">Base material groups</div>
           <ul className="grid gap-2 sm:grid-cols-2">
             {baseMaterialGroups.map((group) => (
               <li
                 key={`bmat-${group.groupId ?? group.index}`}
-                className="rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm"
+                className="rounded-2xl border border-border bg-surface-elevated/80 p-3 shadow-sm"
               >
-                <div className="flex justify-between text-[0.72rem] text-slate-500">
+                <div className="flex justify-between text-[0.72rem] text-text-muted">
                   <span>Group {group.groupId ?? "?"}</span>
                   <span>
                     {group.materials?.length ?? 0} material
@@ -438,7 +439,7 @@ export function SceneTree({
                   </span>
                 </div>
                 {group.uuid ? (
-                  <div className="mt-2 font-mono text-[0.68rem] leading-snug text-slate-500 break-all">
+                  <div className="mt-2 font-mono text-[0.68rem] leading-snug text-text-muted break-all">
                     UUID: {group.uuid}
                   </div>
                 ) : null}
@@ -447,17 +448,17 @@ export function SceneTree({
                     {group.materials.map((mat) => (
                       <li
                         key={`bmat-${group.groupId}-${mat.propertyId}`}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-2 py-1"
+                        className="flex items-center justify-between gap-2 rounded-lg border border-border-subtle bg-surface/80 px-2 py-1"
                       >
                         <div className="flex flex-col">
-                          <span className="truncate text-[0.72rem] text-slate-600">
+                          <span className="truncate text-[0.72rem] text-text-secondary">
                             {mat.name || `Material ${mat.propertyIndex ?? mat.propertyId}`}
                           </span>
-                          <span className="text-[0.62rem] uppercase tracking-[0.18em] text-slate-400">
+                          <span className="text-[0.62rem] uppercase tracking-[0.18em] text-text-muted">
                             ID {mat.propertyId ?? '—'} · index {mat.propertyIndex ?? '—'}
                           </span>
                         </div>
-                        <span className="inline-flex items-center gap-1 text-[0.7rem] text-slate-500">
+                        <span className="inline-flex items-center gap-1 text-[0.7rem] text-text-muted">
                           <span
                             className="h-3 w-3 rounded"
                             style={{ backgroundColor: colorToCss(mat.color) || "transparent" }}
@@ -476,14 +477,14 @@ export function SceneTree({
 
       {colorGroups.length ? (
         <section className="space-y-2">
-          <div className="text-sm font-semibold text-slate-800">Color groups</div>
+          <div className="text-sm font-semibold text-text-primary">Color groups</div>
           <ul className="grid gap-2 sm:grid-cols-2">
             {colorGroups.map((group) => (
               <li
                 key={`cgroup-${group.groupId ?? group.index}`}
-                className="rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm"
+                className="rounded-2xl border border-border bg-surface-elevated/80 p-3 shadow-sm"
               >
-                <div className="flex justify-between text-[0.72rem] text-slate-500">
+                <div className="flex justify-between text-[0.72rem] text-text-muted">
                   <span>Group {group.groupId ?? "?"}</span>
                   <span>
                     {group.colors?.length ?? 0} color
@@ -491,7 +492,7 @@ export function SceneTree({
                   </span>
                 </div>
                 {group.uuid ? (
-                  <div className="mt-2 font-mono text-[0.68rem] leading-snug text-slate-500 break-all">
+                  <div className="mt-2 font-mono text-[0.68rem] leading-snug text-text-muted break-all">
                     UUID: {group.uuid}
                   </div>
                 ) : null}
@@ -500,13 +501,13 @@ export function SceneTree({
                     {group.colors.map((entry, idx) => (
                       <li
                         key={`cgroup-${group.groupId}-${entry.propertyId ?? idx}-${entry.propertyIndex ?? idx}`}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50/80 px-2 py-1"
+                        className="flex items-center justify-between gap-2 rounded-lg border border-border-subtle bg-surface/80 px-2 py-1"
                       >
                         <div className="flex flex-col">
-                          <span className="text-[0.72rem] text-slate-600">
+                          <span className="text-[0.72rem] text-text-secondary">
                             {colorToLabel(entry.color)}
                           </span>
-                          <span className="text-[0.62rem] uppercase tracking-[0.18em] text-slate-400">
+                          <span className="text-[0.62rem] uppercase tracking-[0.18em] text-text-muted">
                             ID {entry.propertyId ?? '—'} · index {entry.propertyIndex ?? idx}
                           </span>
                         </div>
@@ -526,7 +527,7 @@ export function SceneTree({
 
       {sliceStacks.length ? (
         <section className="space-y-2">
-          <div className="text-sm font-semibold text-slate-800">Slice stacks</div>
+          <div className="text-sm font-semibold text-text-primary">Slice stacks</div>
           <ul className="space-y-2">
             {sliceStacks.map((stack, stackIdx) => {
               const zRange = (() => {
@@ -549,9 +550,9 @@ export function SceneTree({
               return (
                 <li
                   key={`slice-stack-${stack.resourceId ?? stackIdx}`}
-                  className="rounded-2xl border border-slate-200 bg-white/80 p-3 shadow-sm"
+                  className="rounded-2xl border border-border bg-surface-elevated/80 p-3 shadow-sm"
                 >
-                  <div className="flex justify-between text-[0.72rem] text-slate-500">
+                  <div className="flex justify-between text-[0.72rem] text-text-muted">
                     <span>Stack {stack.resourceId ?? stackIdx + 1}</span>
                     <span>
                       {stack.sliceCount ?? stack.slices?.length ?? 0} slice
@@ -559,41 +560,41 @@ export function SceneTree({
                     </span>
                   </div>
                   {stack.uuid ? (
-                    <div className="mt-2 font-mono text-[0.68rem] leading-snug text-slate-500 break-all">
+                    <div className="mt-2 font-mono text-[0.68rem] leading-snug text-text-muted break-all">
                       UUID: {stack.uuid}
                     </div>
                   ) : null}
                   <div className="mt-2 space-y-1">
                     {stack.bottomZ !== null && stack.bottomZ !== undefined && (
                       <div className="flex justify-between text-[0.72rem]">
-                        <span className="text-slate-500">Bottom Z</span>
-                        <span className="tabular-nums text-slate-700">{stack.bottomZ}</span>
+                        <span className="text-text-muted">Bottom Z</span>
+                        <span className="tabular-nums text-text-primary">{stack.bottomZ}</span>
                       </div>
                     )}
                     {zRange && (
                       <div className="flex justify-between text-[0.72rem]">
-                        <span className="text-slate-500">Z range</span>
-                        <span className="tabular-nums text-slate-700">
+                        <span className="text-text-muted">Z range</span>
+                        <span className="tabular-nums text-text-primary">
                           {zRange.min.toFixed(3)} — {zRange.max.toFixed(3)}
                         </span>
                       </div>
                     )}
                     {totalVertices > 0 && (
                       <div className="flex justify-between text-[0.72rem]">
-                        <span className="text-slate-500">Total vertices</span>
-                        <span className="tabular-nums text-slate-700">{totalVertices.toLocaleString()}</span>
+                        <span className="text-text-muted">Total vertices</span>
+                        <span className="tabular-nums text-text-primary">{totalVertices.toLocaleString()}</span>
                       </div>
                     )}
                     {totalPolygons > 0 && (
                       <div className="flex justify-between text-[0.72rem]">
-                        <span className="text-slate-500">Total polygons</span>
-                        <span className="tabular-nums text-slate-700">{totalPolygons.toLocaleString()}</span>
+                        <span className="text-text-muted">Total polygons</span>
+                        <span className="tabular-nums text-text-primary">{totalPolygons.toLocaleString()}</span>
                       </div>
                     )}
                     {stack.ownPath && (
                       <div className="flex justify-between text-[0.72rem]">
-                        <span className="text-slate-500">Path</span>
-                        <span className="font-mono text-[0.68rem] text-slate-700 truncate max-w-[60%]" title={stack.ownPath}>
+                        <span className="text-text-muted">Path</span>
+                        <span className="font-mono text-[0.68rem] text-text-primary truncate max-w-[60%]" title={stack.ownPath}>
                           {stack.ownPath}
                         </span>
                       </div>
@@ -611,19 +612,19 @@ export function SceneTree({
   let diagnosticsContent = null;
   if (isReady && diagnosticsSummary) {
     diagnosticsContent = (
-      <div className="space-y-4 text-xs text-slate-600">
+      <div className="space-y-4 text-xs text-text-secondary">
         <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm">
-            <div className="text-sm font-semibold text-slate-700">Warnings</div>
+          <div className="rounded-2xl border border-border bg-surface-elevated/80 p-4 shadow-sm">
+            <div className="text-sm font-semibold text-text-primary">Warnings</div>
             <div className="mt-1 text-2xl font-semibold text-amber-600">{totalWarnings.toLocaleString()}</div>
-            <p className="mt-2 text-[0.75rem] text-slate-500">
+            <p className="mt-2 text-[0.75rem] text-text-muted">
               Combined warnings from strict and non-strict parsing passes.
             </p>
           </div>
-          <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-sm">
-            <div className="text-sm font-semibold text-slate-700">Errors</div>
+          <div className="rounded-2xl border border-border bg-surface-elevated/80 p-4 shadow-sm">
+            <div className="text-sm font-semibold text-text-primary">Errors</div>
             <div className="mt-1 text-2xl font-semibold text-rose-600">{totalErrors.toLocaleString()}</div>
-            <p className="mt-2 text-[0.75rem] text-slate-500">
+            <p className="mt-2 text-[0.75rem] text-text-muted">
               Critical issues encountered while reading the package.
             </p>
           </div>
@@ -643,14 +644,14 @@ export function SceneTree({
 
           if (!hasWarnings && !hasErrors) {
             return (
-              <section key={mode} className="rounded-2xl border border-slate-200 bg-white/90 p-4 shadow-sm">
+              <section key={mode} className="rounded-2xl border border-border bg-surface-elevated/90 p-4 shadow-sm">
                 <div className="flex items-center justify-between">
-                  <div className="text-sm font-semibold text-slate-700">{label}</div>
+                  <div className="text-sm font-semibold text-text-primary">{label}</div>
                   <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[0.7rem] font-medium text-emerald-600">
                     Clean
                   </span>
                 </div>
-                <p className="mt-2 text-[0.75rem] text-slate-500">No warnings or errors reported.</p>
+                <p className="mt-2 text-[0.75rem] text-text-muted">No warnings or errors reported.</p>
               </section>
             );
           }
@@ -658,8 +659,8 @@ export function SceneTree({
           return (
             <section key={mode} className="space-y-3">
               <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-slate-800">{label}</div>
-                <div className="flex items-center gap-2 text-[0.7rem] text-slate-500">
+                <div className="text-sm font-semibold text-text-primary">{label}</div>
+                <div className="flex items-center gap-2 text-[0.7rem] text-text-muted">
                   <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-amber-700">
                     {warningCount.toLocaleString()} warning{warningCount === 1 ? "" : "s"}
                   </span>
@@ -710,8 +711,8 @@ export function SceneTree({
 
   const modelInfoContent = isReady
     ? (
-        <div className="space-y-6 text-xs text-slate-600">
-          <div className="flex items-center gap-2 rounded-full bg-slate-100 p-1 text-[0.72rem] font-medium">
+        <div className="space-y-6 text-xs text-text-secondary">
+          <div className="flex items-center gap-2 rounded-full bg-surface p-1 text-[0.72rem] font-medium">
             {[
               { key: "summary", label: "Summary" },
           {
@@ -728,15 +729,15 @@ export function SceneTree({
                   onClick={() => setModelInfoTab(tab.key)}
                   className={`relative inline-flex items-center gap-2 rounded-full px-3 py-1.5 transition ${
                     active
-                      ? "bg-white text-slate-900 shadow"
-                      : "text-slate-500 hover:text-slate-700"
+                      ? "bg-surface-elevated text-text-primary shadow"
+                      : "text-text-muted hover:text-text-primary"
                   }`}
                 >
                   {tab.label}
                   {tab.badge ? (
                     <span
                       className={`inline-flex min-w-[1.5rem] justify-center rounded-full px-2 py-0.5 text-[0.65rem] font-semibold ${
-                        tab.badge > 0 ? "bg-rose-100 text-rose-600" : "bg-slate-200 text-slate-600"
+                        tab.badge > 0 ? "bg-rose-100 text-rose-600" : "bg-surface text-text-secondary"
                       }`}
                     >
                       {tab.badge}
@@ -796,8 +797,8 @@ export function SceneTree({
 
   const sharedHeader = (
     <div
-      className={`flex flex-col gap-3 px-5 pt-4 pb-3 shrink-0 border-b border-slate-200 ${
-        variant === "drawer" ? "bg-white" : "bg-white/95"
+      className={`flex flex-col gap-3 px-5 pt-4 pb-3 shrink-0 border-b border-border ${
+        variant === "drawer" ? "bg-surface-elevated" : "bg-surface-elevated/95"
       }`}
     >
       <div className="flex flex-col items-center gap-3">
@@ -811,7 +812,7 @@ export function SceneTree({
           />
           <div className="flex w-full flex-wrap items-center justify-center gap-2 sm:flex-nowrap">
             <button
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white shadow-sm transition hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-400 sm:h-9 sm:w-9"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-sm transition hover:bg-accent-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:h-9 sm:w-9"
               onClick={handleFileClick}
               title="Load new data"
               aria-label="Load new data"
@@ -819,7 +820,7 @@ export function SceneTree({
               <IconUpload />
             </button>
             <button
-              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-slate-700 text-white/80 shadow-sm transition hover:bg-slate-600 disabled:cursor-not-allowed disabled:opacity-60 sm:h-9 sm:w-9"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-full bg-surface-elevated text-text-muted shadow-sm transition hover:bg-surface hover:text-text-secondary disabled:cursor-not-allowed disabled:opacity-50 sm:h-9 sm:w-9"
               type="button"
               disabled
               title="Export 3MF (coming soon)"
@@ -830,10 +831,10 @@ export function SceneTree({
             <button
               className={`relative inline-flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition sm:h-9 sm:w-9 ${
                 !isReady
-                  ? "cursor-not-allowed bg-slate-200 text-slate-400"
+                  ? "cursor-not-allowed bg-surface text-text-muted"
                   : hasDiagnosticsAttention
                   ? "bg-rose-600 text-white hover:bg-rose-700"
-                  : "bg-slate-900 text-white hover:bg-slate-800"
+                  : "bg-accent text-accent-foreground hover:bg-accent-hover"
               }`}
               type="button"
               disabled={!isReady}
@@ -843,7 +844,7 @@ export function SceneTree({
             >
               <IconValidate />
               {hasDiagnosticsAttention ? (
-                <span className="absolute -top-1 -right-1 inline-flex min-w-[1.25rem] justify-center rounded-full bg-white/90 px-1 py-0.5 text-[0.65rem] font-semibold text-rose-600 shadow">
+                <span className="absolute -top-1 -right-1 inline-flex min-w-[1.25rem] justify-center rounded-full bg-surface-elevated/90 px-1 py-0.5 text-[0.65rem] font-semibold text-rose-600 shadow">
                   {Math.min(totalWarnings + totalErrors, 99)}
                 </span>
               ) : null}
@@ -851,8 +852,8 @@ export function SceneTree({
             <button
               className={`inline-flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition sm:h-9 sm:w-9 ${
                 !isReady
-                  ? "cursor-not-allowed bg-slate-200 text-slate-400"
-                  : "bg-slate-900 text-white hover:bg-slate-800"
+                  ? "cursor-not-allowed bg-surface text-text-muted"
+                  : "bg-accent text-accent-foreground hover:bg-accent-hover"
               }`}
               type="button"
               disabled={!isReady}
@@ -865,8 +866,8 @@ export function SceneTree({
             <button
               className={`inline-flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition sm:h-9 sm:w-9 ${
                 !isReady
-                  ? "cursor-not-allowed bg-slate-200 text-slate-400"
-                  : "bg-slate-900 text-white hover:bg-slate-800"
+                  ? "cursor-not-allowed bg-surface text-text-muted"
+                  : "bg-accent text-accent-foreground hover:bg-accent-hover"
               }`}
               type="button"
               disabled={!isReady}
@@ -883,7 +884,7 @@ export function SceneTree({
               <button
                 type="button"
                 aria-label="Close navigator"
-                className="rounded-full border border-transparent bg-slate-100/80 p-2 text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
+                className="rounded-full border border-transparent bg-surface/80 p-2 text-text-muted transition hover:bg-surface hover:text-text-primary"
                 onClick={onClose}
               >
                 <IconClose />
@@ -899,7 +900,7 @@ export function SceneTree({
   );
 
   const listSection = (
-    <div className="flex-1 overflow-auto px-3 pb-20 pt-3">
+    <div className="flex-[3] min-h-0 overflow-y-auto px-3 py-3">
       {items.length > 0 ? (
         <ul className="space-y-1">
           {items.map((node) => (
@@ -927,7 +928,7 @@ export function SceneTree({
           ))}
         </ul>
       ) : (
-        <div className="text-xs text-slate-500 px-2 py-3">
+        <div className="text-xs text-text-muted px-2 py-3">
           Drop a .3mf into the viewport or use the button above.
         </div>
       )}
@@ -1125,7 +1126,7 @@ export function SceneTree({
       footer={
         <button
           type="button"
-          className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow transition hover:bg-slate-800"
+          className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground shadow transition hover:bg-accent-hover"
           onClick={handleSpecSave}
         >
           Check support
@@ -1136,20 +1137,20 @@ export function SceneTree({
         value={specInputValue}
         onChange={(event) => setSpecInputValue(event.target.value)}
         placeholder="https://example/specification1\nhttps://example/specification2"
-        className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-inner focus:outline-none focus:ring-2 focus:ring-slate-400"
+        className="w-full rounded-2xl border border-border bg-surface-elevated px-4 py-3 text-sm text-text-primary shadow-inner focus:outline-none focus:ring-2 focus:ring-accent"
         rows={6}
       />
       {(localSpecResults?.length ?? 0) ? (
-        <div className="mt-4 space-y-2 text-xs text-slate-600">
-          <div className="font-semibold text-slate-700">Current results</div>
+        <div className="mt-4 space-y-2 text-xs text-text-secondary">
+          <div className="font-semibold text-text-primary">Current results</div>
           <ul className="space-y-1">
             {localSpecResults.map((spec, index) => (
               <li
                 key={`${spec.url || "spec"}-${index}`}
-                className="rounded-xl border border-slate-200 bg-white/95 px-3 py-2"
+                className="rounded-xl border border-border bg-surface-elevated/95 px-3 py-2"
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[0.72rem] font-semibold text-slate-700 break-all">
+                  <span className="text-[0.72rem] font-semibold text-text-primary break-all">
                     {spec.url || `Specification ${index + 1}`}
                   </span>
                   <span
@@ -1161,7 +1162,7 @@ export function SceneTree({
                   </span>
                 </div>
                 {spec.major !== null && (
-                  <div className="mt-1 text-[0.68rem] text-slate-500">
+                  <div className="mt-1 text-[0.68rem] text-text-muted">
                     Version: v{[spec.major, spec.minor, spec.micro].filter((v) => v !== null).join('.')}
                   </div>
                 )}
@@ -1181,33 +1182,33 @@ export function SceneTree({
       subtitle="Deep-dive info resolved from lib3mf"
       size="lg"
     >
-      <div className="space-y-4 text-xs text-slate-600">
+      <div className="space-y-4 text-xs text-text-secondary">
         {hasUuidInfo ? (
           <section className="space-y-2">
-            <header className="text-[0.75rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <header className="text-[0.75rem] font-semibold uppercase tracking-[0.16em] text-text-muted">
               Identifiers
             </header>
             <ul className="space-y-1">
               {selectedMeta?.uuid ? (
-                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
-                  <div className="text-[0.7rem] font-semibold text-slate-600">Resource UUID</div>
-                  <div className="mt-1 break-all font-mono text-[0.66rem] leading-snug text-slate-500">
+                <li className="rounded-xl border border-border bg-surface-elevated/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-text-secondary">Resource UUID</div>
+                  <div className="mt-1 break-all font-mono text-[0.66rem] leading-snug text-text-muted">
                     {selectedMeta.uuid}
                   </div>
                 </li>
               ) : null}
               {selectedMeta?.buildItemUuid ? (
-                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
-                  <div className="text-[0.7rem] font-semibold text-slate-600">Build item UUID</div>
-                  <div className="mt-1 break-all font-mono text-[0.66rem] leading-snug text-slate-500">
+                <li className="rounded-xl border border-border bg-surface-elevated/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-text-secondary">Build item UUID</div>
+                  <div className="mt-1 break-all font-mono text-[0.66rem] leading-snug text-text-muted">
                     {selectedMeta.buildItemUuid}
                   </div>
                 </li>
               ) : null}
               {selectedMeta?.hasUUID !== undefined ? (
-                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
-                  <div className="text-[0.7rem] font-semibold text-slate-600">UUID present</div>
-                  <div className="mt-1 text-[0.7rem] text-slate-700">
+                <li className="rounded-xl border border-border bg-surface-elevated/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-text-secondary">UUID present</div>
+                  <div className="mt-1 text-[0.7rem] text-text-primary">
                     {selectedMeta.hasUUID ? "Yes" : "No"}
                   </div>
                 </li>
@@ -1218,21 +1219,21 @@ export function SceneTree({
 
         {hasMaterialUsage ? (
           <section className="space-y-2">
-            <header className="text-[0.75rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <header className="text-[0.75rem] font-semibold uppercase tracking-[0.16em] text-text-muted">
               Material usage
             </header>
             <div className="space-y-2">
               {materialUsageDetails.map((entry) => (
                 <article
                   key={`material-modal-${entry.resourceKey}`}
-                  className="rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm"
+                  className="rounded-2xl border border-border bg-surface-elevated/95 p-3 shadow-sm"
                 >
                   <header className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-[0.78rem] font-semibold text-slate-700">
+                    <div className="text-[0.78rem] font-semibold text-text-primary">
                       {entry.label}
                     </div>
-                    <div className="inline-flex items-center gap-2 text-[0.7rem] text-slate-500">
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 uppercase tracking-[0.22em] text-[0.62rem] text-slate-600">
+                    <div className="inline-flex items-center gap-2 text-[0.7rem] text-text-muted">
+                      <span className="rounded-full bg-surface px-2 py-0.5 uppercase tracking-[0.22em] text-[0.62rem] text-text-secondary">
                         {(() => {
                           switch (entry.groupType) {
                             case "BaseMaterialGroup":
@@ -1257,7 +1258,7 @@ export function SceneTree({
                     </div>
                   </header>
                   {entry.uuid ? (
-                    <div className="mt-1 font-mono text-[0.66rem] leading-snug text-slate-500 break-all">
+                    <div className="mt-1 font-mono text-[0.66rem] leading-snug text-text-muted break-all">
                       UUID: {entry.uuid}
                     </div>
                   ) : null}
@@ -1266,12 +1267,12 @@ export function SceneTree({
                       {entry.properties.map((prop) => (
                         <li
                           key={`material-modal-${entry.resourceKey}-prop-${prop.propertyId}`}
-                          className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2"
+                          className="flex items-center justify-between gap-2 rounded-xl border border-border-subtle bg-surface/80 px-3 py-2"
                         >
-                          <div className="truncate text-[0.72rem] text-slate-600" title={prop.label}>
+                          <div className="truncate text-[0.72rem] text-text-secondary" title={prop.label}>
                             {prop.label}
                           </div>
-                          <div className="inline-flex items-center gap-2 text-[0.65rem] text-slate-500">
+                          <div className="inline-flex items-center gap-2 text-[0.65rem] text-text-muted">
                             {prop.color ? (
                               <>
                                 <span
@@ -1281,7 +1282,7 @@ export function SceneTree({
                                 <span>{colorToLabel(prop.color)}</span>
                               </>
                             ) : (
-                              <span className={prop.hasColor ? "text-emerald-600" : "text-slate-400"}>
+                              <span className={prop.hasColor ? "text-emerald-600" : "text-text-muted"}>
                                 {prop.hasColor ? "Colored" : "No per-face color"}
                               </span>
                             )}
@@ -1290,13 +1291,13 @@ export function SceneTree({
                       ))}
                     </ul>
                   ) : entry.propertyIdTotal ? (
-                    <div className="mt-3 text-[0.66rem] text-slate-400">
+                    <div className="mt-3 text-[0.66rem] text-text-muted">
                       {entry.propertyLimitReached
                         ? `Showing first ${entry.properties.length} of ${entry.propertyIdTotal} property IDs.`
                         : `${entry.propertyIdTotal} property ID${entry.propertyIdTotal === 1 ? "" : "s"} reported.`}
                     </div>
                   ) : (
-                    <div className="mt-3 text-[0.66rem] text-slate-400">No property IDs reported.</div>
+                    <div className="mt-3 text-[0.66rem] text-text-muted">No property IDs reported.</div>
                   )}
                 </article>
               ))}
@@ -1306,97 +1307,97 @@ export function SceneTree({
 
         {hasSliceStackDetails ? (
           <section className="space-y-2">
-            <header className="text-[0.75rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <header className="text-[0.75rem] font-semibold uppercase tracking-[0.16em] text-text-muted">
               Slice stack
             </header>
             <ul className="space-y-1">
               {(sliceStackDetails.stack?.resourceId ?? sliceStackDetails.diag?.sliceStackId) !== null &&
               (sliceStackDetails.stack?.resourceId ?? sliceStackDetails.diag?.sliceStackId) !== undefined ? (
-                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
-                  <div className="text-[0.7rem] font-semibold text-slate-600">Resource ID</div>
-                  <div className="mt-1 text-[0.7rem] text-slate-700 tabular-nums">
+                <li className="rounded-xl border border-border bg-surface-elevated/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-text-secondary">Resource ID</div>
+                  <div className="mt-1 text-[0.7rem] text-text-primary tabular-nums">
                     {sliceStackDetails.stack?.resourceId ?? sliceStackDetails.diag?.sliceStackId}
                   </div>
                 </li>
               ) : null}
               {sliceStackDetails.stack?.uniqueResourceId !== null &&
               sliceStackDetails.stack?.uniqueResourceId !== undefined ? (
-                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
-                  <div className="text-[0.7rem] font-semibold text-slate-600">Unique resource ID</div>
-                  <div className="mt-1 text-[0.7rem] text-slate-700 tabular-nums">
+                <li className="rounded-xl border border-border bg-surface-elevated/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-text-secondary">Unique resource ID</div>
+                  <div className="mt-1 text-[0.7rem] text-text-primary tabular-nums">
                     {sliceStackDetails.stack.uniqueResourceId}
                   </div>
                 </li>
               ) : null}
               {(sliceStackDetails.stack?.uuid || sliceStackDetails.diag?.sliceStackUuid) ? (
-                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
-                  <div className="text-[0.7rem] font-semibold text-slate-600">Slice stack UUID</div>
-                  <div className="mt-1 break-all font-mono text-[0.66rem] leading-snug text-slate-500">
+                <li className="rounded-xl border border-border bg-surface-elevated/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-text-secondary">Slice stack UUID</div>
+                  <div className="mt-1 break-all font-mono text-[0.66rem] leading-snug text-text-muted">
                     {sliceStackDetails.stack?.uuid ?? sliceStackDetails.diag?.sliceStackUuid}
                   </div>
                 </li>
               ) : null}
               {(sliceStackDetails.stack?.hasUUID ?? sliceStackDetails.diag?.sliceStackHasUUID) !== undefined ? (
-                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
-                  <div className="text-[0.7rem] font-semibold text-slate-600">UUID present</div>
-                  <div className="mt-1 text-[0.7rem] text-slate-700">
+                <li className="rounded-xl border border-border bg-surface-elevated/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-text-secondary">UUID present</div>
+                  <div className="mt-1 text-[0.7rem] text-text-primary">
                     {(sliceStackDetails.stack?.hasUUID ?? sliceStackDetails.diag?.sliceStackHasUUID) ? "Yes" : "No"}
                   </div>
                 </li>
               ) : null}
               {(sliceStackDetails.stack?.sliceCount ?? sliceStackDetails.diag?.sliceCount) ? (
-                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
-                  <div className="text-[0.7rem] font-semibold text-slate-600">Slice count</div>
-                  <div className="mt-1 text-[0.7rem] text-slate-700 tabular-nums">
+                <li className="rounded-xl border border-border bg-surface-elevated/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-text-secondary">Slice count</div>
+                  <div className="mt-1 text-[0.7rem] text-text-primary tabular-nums">
                     {(sliceStackDetails.stack?.sliceCount ?? sliceStackDetails.diag?.sliceCount).toLocaleString()}
                   </div>
                 </li>
               ) : null}
               {(sliceStackDetails.stack?.bottomZ ?? sliceStackDetails.diag?.sliceBottomZ) !== null &&
               (sliceStackDetails.stack?.bottomZ ?? sliceStackDetails.diag?.sliceBottomZ) !== undefined ? (
-                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
-                  <div className="text-[0.7rem] font-semibold text-slate-600">Bottom Z</div>
-                  <div className="mt-1 text-[0.7rem] text-slate-700 tabular-nums">
+                <li className="rounded-xl border border-border bg-surface-elevated/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-text-secondary">Bottom Z</div>
+                  <div className="mt-1 text-[0.7rem] text-text-primary tabular-nums">
                     {sliceStackDetails.stack?.bottomZ ?? sliceStackDetails.diag?.sliceBottomZ}
                   </div>
                 </li>
               ) : null}
               {sliceStackDetails.zRange ? (
-                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
-                  <div className="text-[0.7rem] font-semibold text-slate-600">Z range</div>
-                  <div className="mt-1 text-[0.7rem] text-slate-700 tabular-nums">
+                <li className="rounded-xl border border-border bg-surface-elevated/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-text-secondary">Z range</div>
+                  <div className="mt-1 text-[0.7rem] text-text-primary tabular-nums">
                     {sliceStackDetails.zRange.min.toFixed(3)} — {sliceStackDetails.zRange.max.toFixed(3)}
                   </div>
                 </li>
               ) : null}
               {sliceStackDetails.diag?.slicesMeshResolution?.name ? (
-                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
-                  <div className="text-[0.7rem] font-semibold text-slate-600">Slice resolution</div>
-                  <div className="mt-1 text-[0.7rem] text-slate-700">
+                <li className="rounded-xl border border-border bg-surface-elevated/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-text-secondary">Slice resolution</div>
+                  <div className="mt-1 text-[0.7rem] text-text-primary">
                     {sliceStackDetails.diag.slicesMeshResolution.name}
                   </div>
                 </li>
               ) : null}
               {sliceStackDetails.totalVertices > 0 ? (
-                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
-                  <div className="text-[0.7rem] font-semibold text-slate-600">Total vertices</div>
-                  <div className="mt-1 text-[0.7rem] text-slate-700 tabular-nums">
+                <li className="rounded-xl border border-border bg-surface-elevated/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-text-secondary">Total vertices</div>
+                  <div className="mt-1 text-[0.7rem] text-text-primary tabular-nums">
                     {sliceStackDetails.totalVertices.toLocaleString()}
                   </div>
                 </li>
               ) : null}
               {sliceStackDetails.totalPolygons > 0 ? (
-                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
-                  <div className="text-[0.7rem] font-semibold text-slate-600">Total polygons</div>
-                  <div className="mt-1 text-[0.7rem] text-slate-700 tabular-nums">
+                <li className="rounded-xl border border-border bg-surface-elevated/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-text-secondary">Total polygons</div>
+                  <div className="mt-1 text-[0.7rem] text-text-primary tabular-nums">
                     {sliceStackDetails.totalPolygons.toLocaleString()}
                   </div>
                 </li>
               ) : null}
               {sliceStackDetails.stack?.ownPath ? (
-                <li className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2">
-                  <div className="text-[0.7rem] font-semibold text-slate-600">Path</div>
-                  <div className="mt-1 truncate font-mono text-[0.66rem] leading-snug text-slate-500">
+                <li className="rounded-xl border border-border bg-surface-elevated/90 px-3 py-2">
+                  <div className="text-[0.7rem] font-semibold text-text-secondary">Path</div>
+                  <div className="mt-1 truncate font-mono text-[0.66rem] leading-snug text-text-muted">
                     {sliceStackDetails.stack.ownPath}
                   </div>
                 </li>
@@ -1404,21 +1405,21 @@ export function SceneTree({
             </ul>
             {sliceStackDetails.references.length ? (
               <div className="space-y-1">
-                <div className="text-[0.7rem] font-semibold text-slate-600">References</div>
+                <div className="text-[0.7rem] font-semibold text-text-secondary">References</div>
                 <ul className="space-y-1">
                   {sliceStackDetails.references.map((ref, index) => (
                     <li
                       key={`slice-ref-${ref.resourceId ?? "none"}-${index}`}
-                      className="rounded-xl border border-slate-200 bg-white/90 px-3 py-2"
+                      className="rounded-xl border border-border bg-surface-elevated/90 px-3 py-2"
                     >
-                      <div className="flex justify-between text-[0.7rem] text-slate-600">
+                      <div className="flex justify-between text-[0.7rem] text-text-secondary">
                         <span>Resource {ref.resourceId ?? "?"}</span>
                         {ref.uniqueResourceId !== null && ref.uniqueResourceId !== undefined ? (
                           <span>Unique {ref.uniqueResourceId}</span>
                         ) : null}
                       </div>
                       {ref.uuid ? (
-                        <div className="mt-1 break-all font-mono text-[0.66rem] leading-snug text-slate-500">
+                        <div className="mt-1 break-all font-mono text-[0.66rem] leading-snug text-text-muted">
                           UUID: {ref.uuid}
                         </div>
                       ) : null}
@@ -1432,23 +1433,23 @@ export function SceneTree({
 
         {hasMetadataEntries ? (
           <section className="space-y-2">
-            <header className="text-[0.75rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <header className="text-[0.75rem] font-semibold uppercase tracking-[0.16em] text-text-muted">
               Metadata entries
             </header>
             <ul className="space-y-1">
               {selectedMeta.metadataEntries.map((entry, index) => (
                 <li
                   key={`${entry.key || entry.name || "meta"}-${index}`}
-                  className="rounded-xl border border-slate-200 bg-white/90 p-2"
+                  className="rounded-xl border border-border bg-surface-elevated/90 p-2"
                 >
-                  <div className="text-[0.72rem] font-semibold text-slate-600">
+                  <div className="text-[0.72rem] font-semibold text-text-secondary">
                     {entry.key || entry.name || `Entry ${index + 1}`}
                   </div>
-                  <div className="mt-0.5 break-words text-[0.8rem] text-slate-700">
+                  <div className="mt-0.5 break-words text-[0.8rem] text-text-primary">
                     {entry.value || "(empty)"}
                   </div>
                   {(entry.namespace || entry.type || entry.mustPreserve) && (
-                    <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[0.68rem] text-slate-500">
+                    <div className="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-[0.68rem] text-text-muted">
                       {entry.namespace ? <span>NS: {entry.namespace}</span> : null}
                       {entry.type ? <span>Type: {entry.type}</span> : null}
                       {entry.mustPreserve ? <span className="font-semibold text-amber-600">Must preserve</span> : null}
@@ -1462,29 +1463,29 @@ export function SceneTree({
 
         {hasComponentsList ? (
           <section className="space-y-2">
-            <header className="text-[0.75rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <header className="text-[0.75rem] font-semibold uppercase tracking-[0.16em] text-text-muted">
               Components
             </header>
             <ul className="space-y-1">
               {selectedMeta.components.map((component) => (
                 <li
                   key={`component-${component.index}`}
-                  className="rounded-xl border border-slate-200 bg-white/90 p-2"
+                  className="rounded-xl border border-border bg-surface-elevated/90 p-2"
                 >
-                  <div className="flex justify-between text-[0.72rem] text-slate-600">
+                  <div className="flex justify-between text-[0.72rem] text-text-secondary">
                     <span>#{component.index}</span>
                     <span>→ Object {component.targetId ?? "?"}</span>
                   </div>
-                  <div className="mt-1 text-[0.7rem] text-slate-500">
+                  <div className="mt-1 text-[0.7rem] text-text-muted">
                     Transform: {component.hasTransform ? "custom" : "identity"}
                   </div>
                   {component.uuid ? (
-                    <div className="mt-1 font-mono text-[0.68rem] leading-snug text-slate-500 break-all">
+                    <div className="mt-1 font-mono text-[0.68rem] leading-snug text-text-muted break-all">
                       UUID: {component.uuid}
                     </div>
                   ) : null}
                   {component.hasTransform && component.transform4x3 ? (
-                    <pre className="mt-1 whitespace-pre-wrap rounded border border-slate-200 bg-slate-50/80 p-2 text-[0.68rem] text-slate-600">
+                    <pre className="mt-1 whitespace-pre-wrap rounded border border-border bg-surface/80 p-2 text-[0.68rem] text-text-secondary">
                       {formatMatrix4x3(component.transform4x3)}
                     </pre>
                   ) : null}
@@ -1496,24 +1497,24 @@ export function SceneTree({
 
         {hasTransformsList ? (
           <section className="space-y-2">
-            <header className="text-[0.75rem] font-semibold uppercase tracking-[0.16em] text-slate-500">
+            <header className="text-[0.75rem] font-semibold uppercase tracking-[0.16em] text-text-muted">
               Transforms
             </header>
             <ul className="space-y-1">
               {selectedMeta.transforms.map((transform, transformIndex) => (
                 <li
                   key={`transform-${transformIndex}-${transform.label || "matrix"}`}
-                  className="rounded-xl border border-slate-200 bg-white/90 p-2"
+                  className="rounded-xl border border-border bg-surface-elevated/90 p-2"
                 >
-                  <div className="text-[0.72rem] font-semibold text-slate-600">
+                  <div className="text-[0.72rem] font-semibold text-text-secondary">
                     {transform.label || `Transform ${transformIndex + 1}`}
                   </div>
                   {transform.matrix4x3 ? (
-                    <pre className="mt-1 whitespace-pre-wrap rounded border border-slate-200 bg-slate-50/80 p-2 text-[0.68rem] text-slate-600">
+                    <pre className="mt-1 whitespace-pre-wrap rounded border border-border bg-surface/80 p-2 text-[0.68rem] text-text-secondary">
                       {formatMatrix4x3(transform.matrix4x3)}
                     </pre>
                   ) : (
-                    <div className="mt-1 text-[0.7rem] text-slate-500">Identity</div>
+                    <div className="mt-1 text-[0.7rem] text-text-muted">Identity</div>
                   )}
                 </li>
               ))}
@@ -1601,11 +1602,11 @@ export function SceneTree({
           rows.push({
             label: "Object-level property",
             value: (
-              <div className="flex flex-wrap items-center gap-2 text-[0.68rem] text-slate-600">
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold uppercase tracking-[0.18em] text-[0.58rem] text-slate-600">
+              <div className="flex flex-wrap items-center gap-2 text-[0.68rem] text-text-secondary">
+                <span className="rounded-full bg-surface px-2 py-0.5 font-semibold uppercase tracking-[0.18em] text-[0.58rem] text-text-secondary">
                   Group {meta.objectLevelProperty.resourceId ?? "?"}
                 </span>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold uppercase tracking-[0.18em] text-[0.58rem] text-slate-600">
+                <span className="rounded-full bg-surface px-2 py-0.5 font-semibold uppercase tracking-[0.18em] text-[0.58rem] text-text-secondary">
                   PID {meta.objectLevelProperty.propertyId ?? "?"}
                 </span>
               </div>
@@ -1654,33 +1655,50 @@ export function SceneTree({
     : [];
 
   const infoSection = selectedInfo ? (
-    <div className="border-t border-slate-200 px-5 py-3 text-xs text-slate-600">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="font-semibold text-slate-700" title={selectedInfo.name}>
+    <div className={`${infoCollapsed ? "shrink-0" : "flex-[2] min-h-0"} overflow-y-auto border-t border-border px-5 pt-3 pb-4 text-xs text-text-secondary`}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-text-primary truncate" title={selectedInfo.name}>
             {selectedInfo.name}
           </div>
-          <div className="mt-0.5 capitalize text-slate-500">{selectedInfo.type}</div>
+          <div className="mt-0.5 capitalize text-text-muted">{selectedInfo.type}</div>
         </div>
-        <button
-          type="button"
-          className="rounded-full border border-slate-200 bg-white/90 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-slate-500 shadow-sm transition hover:bg-white hover:text-slate-700"
-          onClick={() => setInfoCollapsed((prev) => !prev)}
-        >
-          {infoCollapsed ? "Show" : "Hide"} details
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            aria-label={infoCollapsed ? "Show details" : "Hide details"}
+            title={infoCollapsed ? "Show details" : "Hide details"}
+            className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-border shadow-sm transition hover:bg-surface-elevated ${
+              infoCollapsed ? "bg-surface text-text-muted" : "bg-surface-elevated text-text-primary"
+            }`}
+            onClick={() => setInfoCollapsed((prev) => !prev)}
+          >
+            {infoCollapsed ? <IconHidden /> : <IconVisible />}
+          </button>
+          {modalHasContent && (
+            <button
+              type="button"
+              aria-label="More details"
+              title="More details"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-border bg-accent text-accent-foreground shadow-sm transition hover:bg-accent-hover"
+              onClick={() => setMaterialModalOpen(true)}
+            >
+              <IconMore />
+            </button>
+          )}
+        </div>
       </div>
       {selectedInfo.meta && !infoCollapsed ? (
         <>
           {detailRows.length ? (
-            <div className="mt-3 overflow-hidden rounded-2xl border border-slate-200 bg-white/95 shadow-sm">
+            <div className="mt-3 overflow-hidden rounded-2xl border border-border bg-surface-elevated/95 shadow-sm">
               <table className="min-w-full table-fixed border-collapse text-xs">
                 <tbody>
                   {detailRows.map((row, index) => (
-                    <tr key={`${row.label}-${index}`} className={index % 2 === 1 ? "bg-slate-50/70" : "bg-white"}>
+                    <tr key={`${row.label}-${index}`} className={index % 2 === 1 ? "bg-surface/70" : "bg-surface-elevated"}>
                       <th
                         scope="row"
-                        className="w-[45%] align-top border border-slate-200 px-3 py-2 text-left font-semibold uppercase tracking-wide text-slate-500"
+                        className="w-[45%] align-top border border-border px-3 py-2 text-left font-semibold uppercase tracking-wide text-text-muted"
                       >
                         {row.label}
                       </th>
@@ -1689,7 +1707,7 @@ export function SceneTree({
                         const extra = row.numeric || row.align === "right" ? "tabular-nums" : "";
                         return (
                           <td
-                            className={`w-[55%] align-top border border-slate-200 px-3 py-2 text-slate-700 ${textAlign} ${extra}`.trim()}
+                            className={`w-[55%] align-top border border-border px-3 py-2 text-text-primary ${textAlign} ${extra}`.trim()}
                           >
                             <span className="block break-words leading-snug">{row.value}</span>
                           </td>
@@ -1699,18 +1717,6 @@ export function SceneTree({
                   ))}
                 </tbody>
               </table>
-            </div>
-          ) : null}
-
-          {modalHasContent ? (
-            <div className="mt-3 flex justify-end">
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/90 px-3 py-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-slate-600 shadow-sm transition hover:bg-white hover:text-slate-800"
-                onClick={() => setMaterialModalOpen(true)}
-              >
-                View more details
-              </button>
             </div>
           ) : null}
         </>
@@ -1723,7 +1729,7 @@ export function SceneTree({
       open ? "pointer-events-auto" : "pointer-events-none"
     } ${className}`.trim();
 
-    const overlayClasses = `absolute inset-0 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-200 ${
+    const overlayClasses = `absolute inset-0 bg-accent/40 backdrop-blur-sm transition-opacity duration-200 ${
       open ? "opacity-100" : "opacity-0"
     }`;
 
@@ -1736,7 +1742,7 @@ export function SceneTree({
         <div className={drawerShellClasses} aria-label="Scene Tree Drawer">
           <div className={overlayClasses} onClick={onClose} />
           <div className={panelClasses}>
-            <div className="flex h-full flex-col overflow-hidden bg-white shadow-xl ring-1 ring-slate-200">
+            <div className="flex h-full flex-col overflow-hidden bg-surface-elevated shadow-xl ring-1 ring-border">
               {sharedHeader}
               {listSection}
               {infoSection}
@@ -1750,12 +1756,13 @@ export function SceneTree({
     );
   }
 
-  const panelWrapper = `pointer-events-auto fixed inset-x-4 top-[5rem] z-40 mx-auto w-[min(90vw,20rem)] lg:inset-auto lg:left-4 lg:top-[5rem] lg:mx-0 lg:w-[min(22vw,20rem)] ${className}`.trim();
+  // Panel variant renders as sidenav (no fixed positioning - App.jsx handles it)
+  const panelWrapper = `flex flex-col h-full ${className}`.trim();
 
   return (
     <>
       <aside className={panelWrapper} aria-label="Scene Tree">
-        <div className="flex max-h-[calc(100vh-11rem)] flex-col overflow-hidden rounded-2xl bg-white/95 backdrop-blur-sm ring-1 ring-slate-200 shadow-lg sm:max-h-[calc(100vh-11rem)]">
+        <div className="flex flex-col overflow-hidden h-full">
           {sharedHeader}
           {listSection}
           {infoSection}

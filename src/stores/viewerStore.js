@@ -1,5 +1,31 @@
 import { create } from "zustand";
 
+// Light theme defaults
+export const DEFAULT_PREFS_LIGHT = {
+  background: "#f8fafc",
+  hemiSkyColor: "#ffffff",
+  hemiGroundColor: "#a7b1c2",
+  rimColor: "#ffffff",
+  edgeColor: "#111827",
+  // Lighting intensities for light mode
+  ambient: 0.85,
+  hemiIntensity: 0.9,
+  rimIntensity: 0.25,
+};
+
+// Dark theme defaults - brighter lighting to compensate for dark background
+export const DEFAULT_PREFS_DARK = {
+  background: "#1a1a1a",
+  hemiSkyColor: "#e0e0e0",      // Much brighter sky for fill light
+  hemiGroundColor: "#404040",   // Brighter ground reflection
+  rimColor: "#ffffff",          // Strong white rim for definition
+  edgeColor: "#888888",
+  // Higher intensities for dark mode visibility
+  ambient: 1.2,                 // Stronger ambient
+  hemiIntensity: 1.1,           // Stronger hemisphere
+  rimIntensity: 0.5,            // Stronger rim for edge definition
+};
+
 export const DEFAULT_PREFS = {
   background: "#f8fafc",
   ambient: 0.85,
@@ -18,6 +44,8 @@ export const DEFAULT_PREFS = {
   uiBottomControls: true,
   uiHelperMessage: true,
   sliceIndex: -1,
+  // Theme sync: auto-adjust colors when theme changes
+  syncWithTheme: true,
 };
 
 const PREFS_STORAGE_KEY = "3mfViewer:prefs";
@@ -64,6 +92,7 @@ const initializer = (set) => ({
     loadError: "",
     loadedName: "",
     dragActive: false,
+    renderReady: false,  // True after first frame with geometry is rendered
   },
   prefs: loadPrefs(),
   selection: {
@@ -73,6 +102,7 @@ const initializer = (set) => ({
   },
   ui: {
     openPrefs: false,
+    sidenavCollapsed: false,
     mobileNavOpen: false,
     mobileDockOpen: false,
     helpCardOpen: false,
@@ -121,6 +151,8 @@ const initializer = (set) => ({
 
   setDragActive: (active) =>
     set((state) => ({ viewer: { ...state.viewer, dragActive: active } })),
+  setRenderReady: (ready) =>
+    set((state) => ({ viewer: { ...state.viewer, renderReady: ready } })),
   beginLoad: (fileName) =>
     set((state) => ({
       viewer: {
@@ -130,6 +162,7 @@ const initializer = (set) => ({
         loadedName: fileName,
         sceneObject: null,
         sceneData: null,
+        renderReady: false,  // Reset render ready state
       },
       selection: {
         ...state.selection,
@@ -235,6 +268,10 @@ const initializer = (set) => ({
     })),
   setMobileNavOpen: (open) =>
     set((state) => ({ ui: { ...state.ui, mobileNavOpen: open } })),
+  setSidenavCollapsed: (collapsed) =>
+    set((state) => ({ ui: { ...state.ui, sidenavCollapsed: collapsed } })),
+  toggleSidenav: () =>
+    set((state) => ({ ui: { ...state.ui, sidenavCollapsed: !state.ui.sidenavCollapsed } })),
   setMobileDockOpen: (open) =>
     set((state) => ({ ui: { ...state.ui, mobileDockOpen: open } })),
   setHelpCardOpen: (open) =>

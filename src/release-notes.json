@@ -1,4 +1,13 @@
 {
+  "0.25.0": [
+    "UI refresh with black/white color scheme replacing teal accents",
+    "Dark mode now has optimized lighting with brighter hemisphere and rim lights",
+    "Theme toggle button added to navbar for quick light/dark/auto switching",
+    "Progress bar stays visible until geometry is rendered, not just loaded",
+    "Theme transition overlay for smooth theme switching",
+    "Scene tree details panel redesigned with icon buttons for show/hide and more details",
+    "HUD elements properly centered within renderer area when sidenav is visible"
+  ],
   "0.24.0": [
     "Uniform lighting refresh with ambient + hemisphere + rim light controls in preferences",
     "Directional light and shadow toggles removed for a simpler lighting model",

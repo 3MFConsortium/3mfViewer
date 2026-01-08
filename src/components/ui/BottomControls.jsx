@@ -19,10 +19,10 @@ function Btn({ title, onClick, active = false, children }) {
       aria-pressed={active}
       onClick={onClick}
       className={
-        "inline-flex h-9 w-9 items-center justify-center rounded-full p-2 text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70 sm:h-10 sm:w-10 sm:p-2.5 " +
+        "inline-flex h-9 w-9 items-center justify-center rounded-full p-2 text-sm transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent sm:h-10 sm:w-10 sm:p-2.5 " +
         (active
-          ? "bg-white text-slate-900"
-          : "bg-white/10 text-white hover:bg-white/20 ring-1 ring-white/20")
+          ? "bg-accent text-accent-foreground"
+          : "bg-surface-elevated/20 text-text-primary hover:bg-surface-elevated/40 ring-1 ring-border/30")
       }
     >
       {children}
@@ -31,7 +31,7 @@ function Btn({ title, onClick, active = false, children }) {
 }
 
 function Divider() {
-  return <div className="mx-1 hidden h-8 w-px bg-white/20 lg:block" />;
+  return <div className="mx-1 hidden h-8 w-px bg-border/30 lg:block" />;
 }
 
 export function BottomControls({
@@ -51,13 +51,16 @@ export function BottomControls({
   className = "",
   position = "fixed",
   endCap = null,
+  hasSidenav = false,
 }) {
   const isFixed = position === "fixed";
+  // On desktop with sidenav, offset left to center within renderer area
+  const sidenavOffset = hasSidenav ? "lg:left-72" : "";
   const outerBase = isFixed
-    ? "fixed inset-x-0 bottom-3 z-50 flex justify-center px-3 sm:bottom-4 sm:left-1/2 sm:right-auto sm:inset-auto sm:-translate-x-1/2 sm:px-0"
+    ? `fixed left-0 right-0 bottom-3 z-50 flex justify-center px-3 sm:bottom-4 ${sidenavOffset}`
     : "flex w-full justify-center";
   const innerBase =
-    "flex w-full max-w-xl flex-wrap items-center justify-center gap-2 overflow-x-auto rounded-2xl bg-slate-900/80 px-3 py-2 text-white backdrop-blur ring-1 ring-black/20 shadow-xl";
+    "flex w-full max-w-xl flex-wrap items-center justify-center gap-2 overflow-x-auto rounded-2xl glass-elevated px-3 py-2 shadow-xl";
   const innerResponsive = isFixed
     ? "sm:w-auto sm:max-w-none sm:justify-center sm:px-4 lg:flex-nowrap lg:gap-1 lg:rounded-full lg:px-3 lg:py-2.5"
     : "lg:flex-nowrap lg:gap-1 lg:rounded-full lg:px-3 lg:py-2.5";
