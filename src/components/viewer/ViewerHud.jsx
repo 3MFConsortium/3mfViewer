@@ -6,8 +6,8 @@ import { IconMenu, IconQuestion, IconPrefs, IconSun, IconMoon, IconMonitor } fro
 export function ViewerHud({
   showScene,
   fps,
-  helpButtonRef,
   onBackToStart,
+  onToggleHelp,
   hidden = false,
   hasSidenav = false,
 }) {
@@ -15,12 +15,9 @@ export function ViewerHud({
   const showSceneTree = useViewerStore((state) => state.prefs.uiSceneTree);
   const showStats = useViewerStore((state) => state.prefs.showStats);
   const mobileNavOpen = useViewerStore((state) => state.ui.mobileNavOpen);
-  const helpCardOpen = useViewerStore((state) => state.ui.helpCardOpen);
   const toggleMobileNav = useViewerStore((state) => state.toggleMobileNav);
-  const toggleHelpCard = useViewerStore((state) => state.toggleHelpCard);
   const setOpenPrefs = useViewerStore((state) => state.setOpenPrefs);
 
-  const helpAvailable = true; // or come from somewhere else if needed
   const { theme, cycleTheme } = useTheme();
 
   const fpsLabel = Number.isFinite(fps) && fps > 0 ? Math.round(fps) : "--";
@@ -89,25 +86,18 @@ export function ViewerHud({
             >
               <IconPrefs />
             </button>
+            <button
+              type="button"
+              aria-label="Keyboard shortcuts"
+              title="Keyboard shortcuts (?)"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-surface-elevated text-text-secondary shadow-sm ring-1 ring-border transition hover:bg-surface hover:text-text-primary"
+              onClick={onToggleHelp}
+            >
+              <IconQuestion />
+            </button>
           </div>
         </div>
       </div>
-
-      {showScene && helpAvailable && (
-        <div className="pointer-events-none fixed bottom-4 right-4 z-40 hidden lg:flex">
-          <button
-            ref={helpButtonRef}
-            type="button"
-            aria-label="Show viewer tips"
-            aria-expanded={helpCardOpen}
-            onClick={toggleHelpCard}
-            className={`pointer-events-auto inline-flex h-12 w-12 items-center justify-center rounded-full bg-surface-elevated text-accent shadow-xl ring-1 ring-border transition hover:bg-surface hover:text-accent-hover ${helpCardOpen ? "" : "animate-pulse"
-              }`}
-          >
-            <IconQuestion />
-          </button>
-        </div>
-      )}
 
       {showScene && showStats && (
         <div className="pointer-events-none fixed right-4 top-16 z-30 text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-text-muted">

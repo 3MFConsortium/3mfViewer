@@ -3,7 +3,7 @@ import { useViewerStore } from "../../stores/viewerStore.js";
 
 import { BottomControls } from "../ui/BottomControls.jsx";
 import { SliceSlider } from "../ui/SliceSlider.jsx";
-import { IconDock, IconClose, IconQuestion } from "../ui/Icons.jsx";
+import { IconDock, IconClose } from "../ui/Icons.jsx";
 
 export function ViewerOverlays({
   showDesktopBottomBar,
@@ -32,17 +32,12 @@ export function ViewerOverlays({
   const loadedName = useViewerStore((state) => state.viewer.loadedName);
   const loadError = useViewerStore((state) => state.viewer.loadError);
   const mobileDockOpen = useViewerStore((state) => state.ui.mobileDockOpen);
-  const helpCardOpen = useViewerStore((state) => state.ui.helpCardOpen);
   const tabletDockCollapsed = useViewerStore((state) => state.ui.tabletDockCollapsed);
   const dockHintActive = useViewerStore((state) => state.ui.dockHintActive);
   const dockCueActive = useViewerStore((state) => state.ui.dockCueActive);
   const toggleMobileDock = useViewerStore((state) => state.toggleMobileDock);
   const setMobileDockOpen = useViewerStore((state) => state.setMobileDockOpen);
-  const toggleHelpCard = useViewerStore((state) => state.toggleHelpCard);
   const toggleTabletDock = useViewerStore((state) => state.toggleTabletDock);
-
-  const helpAvailable = true;
-  const helpButtonRef = null; // or pass it if needed
 
   const renderBottomControls = (extraProps = {}) => {
     return (
@@ -148,27 +143,6 @@ export function ViewerOverlays({
             </>
           )}
         </>
-      )}
-
-      {helpAvailable && (
-        <div
-          className={`pointer-events-none fixed right-4 z-50 flex lg:hidden ${showTouchFab ? "bottom-24" : "bottom-4"
-            }`}
-        >
-          <div className="pointer-events-auto gradient-halo rounded-full p-[3px]">
-            <button
-              ref={helpButtonRef}
-              type="button"
-              aria-label="Show viewer tips"
-              aria-expanded={helpCardOpen}
-              onClick={toggleHelpCard}
-              className={`flex h-12 w-12 items-center justify-center rounded-full bg-accent text-accent-foreground shadow-xl ring-1 ring-accent-hover/30 transition hover:bg-accent-hover ${helpCardOpen ? "" : "animate-pulse"
-                }`}
-            >
-              <IconQuestion />
-            </button>
-          </div>
-        </div>
       )}
 
       {loadStatus === "loading" && (

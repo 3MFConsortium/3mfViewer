@@ -171,7 +171,6 @@ function ViewerApp() {
   const [loadLastUpdateMs, setLoadLastUpdateMs] = useState(null);
   const [loadStage, setLoadStage] = useState(null);
   const lastProgressRef = useRef({ triangles: 0, at: 0 });
-  const helpButtonRef = useRef(null);
   const helpCardRef = useRef(null);
   const fps = useRafFps({ sample: 750 });
   const embedConfig = useMemo(() => parseEmbedConfig(), []);
@@ -1318,6 +1317,7 @@ function ViewerApp() {
   }, [sceneObject, loadStatus, triggerFit]);
 
   // Arrow keys: keep keyboard panning even without on-screen D-pad
+  // ? key: toggle help modal
   useEffect(() => {
     const onKeyDown = (e) => {
       const tag = (e.target && e.target.tagName) || "";
@@ -1335,13 +1335,16 @@ function ViewerApp() {
       } else if (e.key === "ArrowDown") {
         panDown();
         e.preventDefault();
+      } else if (e.key === "?") {
+        toggleHelpCard();
+        e.preventDefault();
       }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => {
       window.removeEventListener("keydown", onKeyDown);
     };
-  }, [panLeft, panRight, panUp, panDown]);
+  }, [panLeft, panRight, panUp, panDown, toggleHelpCard]);
 
   // screenshot
   const handleScreenshot = useCallback(() => {
@@ -1364,7 +1367,6 @@ function ViewerApp() {
 
   const showSceneTree = showScene && prefs.uiSceneTree && !isEmbedQuick;
   const showBottomBar = showScene && prefs.uiBottomControls && !isEmbedQuick;
-  const helpAvailable = showScene && prefs.uiHelperMessage && !isEmbedQuick;
 
   const pageHeightClass = showScene || isEmbedQuick ? "h-screen" : "min-h-screen";
   const pageBackgroundClass = isEmbedTransparent
@@ -1373,22 +1375,6 @@ function ViewerApp() {
     ? "bg-accent-subtle"
     : "bg-background";
 
-
-  const helpItems = isCoarsePointer
-    ? [
-      "Drag with one finger to orbit",
-      "Pinch with two fingers to zoom",
-      "Two-finger drag to pan",
-      "Double tap to fit the model",
-      "Two-finger tap to reset view",
-    ]
-    : [
-      "Drag with mouse to orbit",
-      "Shift + drag to pan",
-      "Scroll to zoom",
-      "Arrow keys to pan",
-      "Use toolbar buttons for fit/reset",
-    ];
   const coarseTabletBreakpoint = 1024;
   const showTouchFab = isCoarsePointer && viewportWidth < coarseTabletBreakpoint;
   const showTouchTabletFull = isCoarsePointer && viewportWidth >= coarseTabletBreakpoint;
@@ -1497,12 +1483,6 @@ function ViewerApp() {
   }, [showTouchTabletFull, setTabletDockCollapsed]);
 
   useEffect(() => {
-    if (!helpAvailable) {
-      setHelpCardOpen(false);
-    }
-  }, [helpAvailable, setHelpCardOpen]);
-
-  useEffect(() => {
     if (!canvasElement) return undefined;
 
     let lastSingleTap = 0;
@@ -1592,33 +1572,16 @@ function ViewerApp() {
     return undefined;
   }, [showTouchTabletFull, tabletDockCollapsed, setDockCueActive]);
 
+  // Close help modal on Escape key
   useEffect(() => {
     if (!helpCardOpen) return undefined;
-
-    const handlePointer = (event) => {
-      const target = event.target;
-      if (
-        helpCardRef.current?.contains(target) ||
-        helpButtonRef.current?.contains(target)
-      ) {
-        return;
-      }
-      setHelpCardOpen(false);
-    };
 
     const handleKey = (event) => {
       if (event.key === "Escape") setHelpCardOpen(false);
     };
 
-    document.addEventListener("mousedown", handlePointer);
-    document.addEventListener("touchstart", handlePointer);
     window.addEventListener("keydown", handleKey);
-
-    return () => {
-      document.removeEventListener("mousedown", handlePointer);
-      document.removeEventListener("touchstart", handlePointer);
-      window.removeEventListener("keydown", handleKey);
-    };
+    return () => window.removeEventListener("keydown", handleKey);
   }, [helpCardOpen, setHelpCardOpen]);
 
   const groundSize = sceneBounds ? Math.max(sceneBounds.maxExtent * 2.5, 20) : 20;
@@ -1786,8 +1749,8 @@ function ViewerApp() {
           <ViewerHud
             showScene={showScene}
             fps={fps}
-            helpButtonRef={helpButtonRef}
             onBackToStart={clearScene}
+            onToggleHelp={toggleHelpCard}
             hidden={isEmbedQuick}
             hasSidenav={prefs.uiSceneTree}
           />
@@ -1806,33 +1769,101 @@ function ViewerApp() {
           />
         )}
 
-        {helpAvailable && helpCardOpen && !isEmbedQuick && (
-          <div className="pointer-events-none fixed right-3 top-24 z-40 sm:top-28">
+        {helpCardOpen && !isEmbedQuick && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+            onClick={() => setHelpCardOpen(false)}
+          >
             <div
               ref={helpCardRef}
-              className="pointer-events-auto w-64 rounded-2xl glass-elevated p-4 text-sm text-text-secondary shadow-2xl"
+              className="relative w-full max-w-md mx-4 rounded-2xl bg-surface-elevated shadow-2xl border border-border overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
             >
-              <div className="mb-3 flex items-center justify-between">
-                <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                  Viewer tips
-                </p>
-                <button
-                  type="button"
-                  aria-label="Close viewer tips"
-                  className="rounded-full p-1 text-text-muted transition hover:bg-surface hover:text-text-secondary"
-                  onClick={() => setHelpCardOpen(false)}
-                >
-                  <IconClose />
-                </button>
+              <div className="px-6 pt-6 pb-4 border-b border-border">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-text-primary">Keyboard Shortcuts</h2>
+                  <button
+                    type="button"
+                    aria-label="Close"
+                    className="rounded-full p-1.5 text-text-muted transition hover:bg-surface hover:text-text-primary"
+                    onClick={() => setHelpCardOpen(false)}
+                  >
+                    <IconClose />
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-text-muted">Press Esc to close</p>
               </div>
-              <ul className="space-y-1.5">
-                {helpItems.map((item, index) => (
-                  <li key={index} className="flex items-start gap-2 text-xs text-text-secondary">
-                    <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-text-muted" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
+
+              <div className="px-6 py-5 space-y-5 max-h-[60vh] overflow-y-auto">
+                {/* Mouse Controls */}
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-3">Mouse Controls</h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-text-secondary">Orbit</span>
+                      <kbd className="px-2 py-1 rounded bg-surface text-text-muted text-xs font-mono">Drag</kbd>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-text-secondary">Pan</span>
+                      <div className="flex gap-1">
+                        <kbd className="px-2 py-1 rounded bg-surface text-text-muted text-xs font-mono">Shift</kbd>
+                        <span className="text-text-muted">+</span>
+                        <kbd className="px-2 py-1 rounded bg-surface text-text-muted text-xs font-mono">Drag</kbd>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-text-secondary">Zoom</span>
+                      <kbd className="px-2 py-1 rounded bg-surface text-text-muted text-xs font-mono">Scroll</kbd>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Keyboard */}
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-3">Keyboard</h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-text-secondary">Pan</span>
+                      <kbd className="px-2 py-1 rounded bg-surface text-text-muted text-xs font-mono">Arrow keys</kbd>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-text-secondary">Show shortcuts</span>
+                      <kbd className="px-2 py-1 rounded bg-surface text-text-muted text-xs font-mono">?</kbd>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-text-secondary">Close dialogs</span>
+                      <kbd className="px-2 py-1 rounded bg-surface text-text-muted text-xs font-mono">Esc</kbd>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Touch Gestures */}
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted mb-3">Touch Gestures</h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-text-secondary">Orbit</span>
+                      <span className="text-text-muted text-xs">One finger drag</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-text-secondary">Zoom</span>
+                      <span className="text-text-muted text-xs">Pinch</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-text-secondary">Pan</span>
+                      <span className="text-text-muted text-xs">Two finger drag</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-text-secondary">Fit to view</span>
+                      <span className="text-text-muted text-xs">Double tap</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-text-secondary">Reset view</span>
+                      <span className="text-text-muted text-xs">Two finger tap</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}

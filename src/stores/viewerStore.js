@@ -19,7 +19,7 @@ export const DEFAULT_PREFS_DARK = {
   hemiSkyColor: "#e0e0e0",      // Much brighter sky for fill light
   hemiGroundColor: "#404040",   // Brighter ground reflection
   rimColor: "#ffffff",          // Strong white rim for definition
-  edgeColor: "#888888",
+  edgeColor: "#111827",         // Dark edges contrast against mesh surface
   // Higher intensities for dark mode visibility
   ambient: 1.2,                 // Stronger ambient
   hemiIntensity: 1.1,           // Stronger hemisphere

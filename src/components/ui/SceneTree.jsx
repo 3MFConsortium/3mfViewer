@@ -1671,7 +1671,7 @@ export function SceneTree({
             className={`inline-flex h-8 w-8 items-center justify-center rounded-full border border-border shadow-sm transition hover:bg-surface-elevated ${
               infoCollapsed ? "bg-surface text-text-muted" : "bg-surface-elevated text-text-primary"
             }`}
-            onClick={() => setInfoCollapsed((prev) => !prev)}
+            onClick={() => setInfoCollapsed(!infoCollapsed)}
           >
             {infoCollapsed ? <IconHidden /> : <IconVisible />}
           </button>

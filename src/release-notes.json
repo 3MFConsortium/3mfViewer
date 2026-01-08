@@ -6,7 +6,11 @@
     "Progress bar stays visible until geometry is rendered, not just loaded",
     "Theme transition overlay for smooth theme switching",
     "Scene tree details panel redesigned with icon buttons for show/hide and more details",
-    "HUD elements properly centered within renderer area when sidenav is visible"
+    "HUD elements properly centered within renderer area when sidenav is visible",
+    "Version number in startup modal now opens release notes view",
+    "Dark mode edges use dark color for better contrast against mesh surfaces",
+    "Keyboard shortcuts modal in navbar with ? key to toggle and Esc to close",
+    "Fixed details panel show/hide toggle not working after hiding"
   ],
   "0.24.0": [
     "Uniform lighting refresh with ambient + hemisphere + rim light controls in preferences",
