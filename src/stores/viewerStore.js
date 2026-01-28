@@ -40,6 +40,7 @@ export const DEFAULT_PREFS = {
   wireframe: false,
   edges: false,
   edgeColor: "#111827",
+  beamLatticeMode: "lines",
   uiSceneTree: true,
   uiBottomControls: true,
   uiHelperMessage: true,

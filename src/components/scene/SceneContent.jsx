@@ -12,6 +12,8 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
 
     object.traverse((child) => {
       if (!child.isMesh) return;
+      if (child.userData?.isBeamLatticeLines) return;
+      if (child.userData?.isBeamLatticeLines) return;
       const materials = Array.isArray(child.material)
         ? child.material
         : [child.material];
@@ -56,6 +58,7 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
     );
     object.traverse((child) => {
       if (!child.isMesh) return;
+      if (child.userData?.isBeamLatticeLines) return;
       if (child.userData?.isSliceLine) return; // Skip slice lines
 
       if (child.userData?.virtualMesh) {
@@ -72,6 +75,16 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
           const anyHidden = [...resourceIdsInMesh].some(id => hiddenIds.has(id));
           // For single-resource meshes, this works perfectly
           // For multi-resource meshes, hide if any resource is hidden (best we can do without custom shader)
+          child.visible = !anyHidden;
+        }
+      } else if (child.userData?.isBeamLatticeLines) {
+        const idAttr = child.geometry?.getAttribute("virtualResourceId");
+        if (idAttr) {
+          const resourceIdsInMesh = new Set();
+          for (let i = 0; i < idAttr.count; i += 1) {
+            resourceIdsInMesh.add(idAttr.getX(i));
+          }
+          const anyHidden = [...resourceIdsInMesh].some(id => hiddenIds.has(id));
           child.visible = !anyHidden;
         }
       } else if (child.userData?.isBeamLattice) {

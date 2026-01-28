@@ -182,6 +182,17 @@ export function ScenePreferences({ prefs, onChange }) {
                 className="h-9 w-12 cursor-pointer rounded border border-border"
               />
             </label>
+            <label className="flex items-center gap-3 sm:col-span-2">
+              <span className="w-40 text-sm text-text-secondary">Beam lattices</span>
+              <select
+                value={prefs.beamLatticeMode}
+                onChange={(e) => set("beamLatticeMode", e.target.value)}
+                className="h-9 w-48 rounded-full border border-border bg-white px-3 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
+              >
+                <option value="lines">Lines only (fast)</option>
+                <option value="hybrid">Hybrid (lines + mesh)</option>
+              </select>
+            </label>
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"

@@ -29,6 +29,11 @@ const collectTransferables = (parsed) => {
     pushBuffer(parsed.geometry.colors);
     pushBuffer(parsed.geometry.uvs);
     pushBuffer(parsed.geometry.resourceIds);
+    if (parsed.geometry.beamLines) {
+      pushBuffer(parsed.geometry.beamLines.positions);
+      pushBuffer(parsed.geometry.beamLines.resourceIds);
+      pushBuffer(parsed.geometry.beamLines.radii);
+    }
   } else {
     // Legacy fallback (shouldn't be needed if engine updated, but safe to keep or remove specific resource buffers if we don't want them anymore)
     parsed?.meshResources?.forEach((resource) => {

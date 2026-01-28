@@ -445,96 +445,225 @@ export function ThreeMFLoaderProvider({ children }) {
 
 
       // --- Consuming Flat Geometry from Worker ---
-      if (parsed.geometry && parsed.geometry.vertexCount > 0) {
-        const { positions, colors, uvs, resourceIds, groups, vertexCount } = parsed.geometry;
+      if (parsed.geometry) {
+        const { positions, colors, uvs, resourceIds, groups, vertexCount, beamLines } = parsed.geometry;
 
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-        geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-        geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+        if (vertexCount > 0) {
+          const geometry = new THREE.BufferGeometry();
+          geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+          geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+          geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
 
-        // Virtual mesh attributes for per-resource visibility toggling
-        if (resourceIds) {
-          geometry.setAttribute("virtualResourceId", new THREE.BufferAttribute(resourceIds, 1));
-          // Initialize visibility to 1 (visible) for all vertices
-          const visibility = new Float32Array(vertexCount);
-          visibility.fill(1.0);
-          geometry.setAttribute("virtualVisibility", new THREE.BufferAttribute(visibility, 1));
-          // Track which vertices use textures (for visibility shader logic)
-          const useTexture = new Float32Array(vertexCount);
-          const hasTexture = new Float32Array(vertexCount);
-          // Will be populated based on groups
-          geometry.setAttribute("virtualUseTexture", new THREE.BufferAttribute(useTexture, 1));
-          geometry.setAttribute("virtualHasTexture", new THREE.BufferAttribute(hasTexture, 1));
-        }
+          // Virtual mesh attributes for per-resource visibility toggling
+          if (resourceIds) {
+            geometry.setAttribute("virtualResourceId", new THREE.BufferAttribute(resourceIds, 1));
+            // Initialize visibility to 1 (visible) for all vertices
+            const visibility = new Float32Array(vertexCount);
+            visibility.fill(1.0);
+            geometry.setAttribute("virtualVisibility", new THREE.BufferAttribute(visibility, 1));
+            // Track which vertices use textures (for visibility shader logic)
+            const useTexture = new Float32Array(vertexCount);
+            const hasTexture = new Float32Array(vertexCount);
+            // Will be populated based on groups
+            geometry.setAttribute("virtualUseTexture", new THREE.BufferAttribute(useTexture, 1));
+            geometry.setAttribute("virtualHasTexture", new THREE.BufferAttribute(hasTexture, 1));
+          }
 
-        // Materials
-        // We need to map textureId -> material index per group.
-        // groups: { start, count, textureId }.
+          // Materials
+          // We need to map textureId -> material index per group.
+          // groups: { start, count, textureId }.
 
-        const matCache = new Map(); // textureId (or null) -> material
+          const matCache = new Map(); // textureId (or null) -> material
 
-        const getMaterial = (textureId) => {
-          const key = textureId ?? "none";
-          if (matCache.has(key)) return matCache.get(key);
+          const getMaterial = (textureId) => {
+            const key = textureId ?? "none";
+            if (matCache.has(key)) return matCache.get(key);
 
-          const tex = textureId ? textureMap.get(textureId) : null;
-          const hasTex = !!tex;
+            const tex = textureId ? textureMap.get(textureId) : null;
+            const hasTex = !!tex;
 
-          const material = new THREE.MeshPhongMaterial({
-            color: hasTex ? "#ffffff" : "#ffffff",
-            map: tex || null,
-            vertexColors: !hasTex, // Use vertex colors if no texture
-            specular: "#111111",
-            shininess: 10,
-            flatShading: true
+            const material = new THREE.MeshPhongMaterial({
+              color: hasTex ? "#ffffff" : "#ffffff",
+              map: tex || null,
+              vertexColors: !hasTex, // Use vertex colors if no texture
+              specular: "#111111",
+              shininess: 10,
+              flatShading: true
+            });
+
+            matCache.set(key, material);
+            return material;
+          };
+
+          const distinctMaterials = [];
+          const materialIndexMap = new Map(); // key -> index in distinctMaterials array
+
+          groups.forEach(g => {
+            const key = g.textureId ?? "none";
+            if (!materialIndexMap.has(key)) {
+              const mat = getMaterial(g.textureId);
+              materialIndexMap.set(key, distinctMaterials.length);
+              distinctMaterials.push(mat);
+            }
+            const matIndex = materialIndexMap.get(key);
+            geometry.addGroup(g.start, g.count, matIndex);
           });
 
-          matCache.set(key, material);
-          return material;
-        };
-
-        const distinctMaterials = [];
-        const materialIndexMap = new Map(); // key -> index in distinctMaterials array
-
-        groups.forEach(g => {
-          const key = g.textureId ?? "none";
-          if (!materialIndexMap.has(key)) {
-            const mat = getMaterial(g.textureId);
-            materialIndexMap.set(key, distinctMaterials.length);
+          // If no groups (weird?), add one default
+          if (groups.length === 0) {
+            const mat = getMaterial(null);
             distinctMaterials.push(mat);
+            geometry.addGroup(0, vertexCount, 0);
           }
-          const matIndex = materialIndexMap.get(key);
-          geometry.addGroup(g.start, g.count, matIndex);
-        });
 
-        // If no groups (weird?), add one default
-        if (groups.length === 0) {
-          const mat = getMaterial(null);
-          distinctMaterials.push(mat);
-          geometry.addGroup(0, vertexCount, 0);
+          const mesh = new THREE.Mesh(geometry, distinctMaterials);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          mesh.name = fileName?.replace(/\\.[^/.]+$/, "") || "3MF Model";
+          // Mark as virtual mesh for per-resource visibility toggling
+          if (resourceIds) {
+            mesh.userData.virtualMesh = true;
+          }
+          // Orient for Y-up if needed (3MF is typically Z-up, but ThreeMFLoader usually rotates it?)
+          // Standard ThreeMFLoader in three.js:
+          // "3MF documents use a right-handed coordinate system... Z-axis is positive up."
+          // THREE is Y-up.
+          // The previous code didn't seem to apply a global rotation, assuming the viewer camera handles it OR usage of a container.
+          // I will check if I need to rotate it.
+          // The previous code put it in a group.
+
+          group.add(mesh);
         }
 
-        const mesh = new THREE.Mesh(geometry, distinctMaterials);
-        mesh.castShadow = true;
-        mesh.receiveShadow = true;
-        mesh.name = fileName?.replace(/\.[^/.]+$/, "") || "3MF Model";
-        // Mark as virtual mesh for per-resource visibility toggling
-        if (resourceIds) {
-          mesh.userData.virtualMesh = true;
-        }
-        // Orient for Y-up if needed (3MF is typically Z-up, but ThreeMFLoader usually rotates it?)
-        // Standard ThreeMFLoader in three.js:
-        // "3MF documents use a right-handed coordinate system... Z-axis is positive up."
-        // THREE is Y-up.
-        // The previous code didn't seem to apply a global rotation, assuming the viewer camera handles it OR usage of a container.
-        // I will check if I need to rotate it.
-        // The previous code put it in a group.
+        if (beamLines?.positions?.length) {
+          const lineCount = beamLines.positions.length / 6;
+          const vertCount = lineCount * 4;
+          const idxCount = lineCount * 6;
+          const startAttr = new Float32Array(vertCount * 3);
+          const endAttr = new Float32Array(vertCount * 3);
+          const sideAttr = new Float32Array(vertCount);
+          const alongAttr = new Float32Array(vertCount);
+          const resourceAttr = new Float32Array(vertCount);
+          const radiusAttr = new Float32Array(vertCount);
+          const indices = new Uint32Array(idxCount);
 
-        group.add(mesh);
+          let v = 0;
+          let i = 0;
+          for (let line = 0; line < lineCount; line += 1) {
+            const srcOff = line * 6;
+            const sx = beamLines.positions[srcOff + 0];
+            const sy = beamLines.positions[srcOff + 1];
+            const sz = beamLines.positions[srcOff + 2];
+            const ex = beamLines.positions[srcOff + 3];
+            const ey = beamLines.positions[srcOff + 4];
+            const ez = beamLines.positions[srcOff + 5];
+            const resId = beamLines.resourceIds ? beamLines.resourceIds[line * 2] : 0;
+            const radius = beamLines.radii ? beamLines.radii[line] : 1;
+
+            const writeVertex = (along, side) => {
+              const base = v * 3;
+              startAttr[base + 0] = sx;
+              startAttr[base + 1] = sy;
+              startAttr[base + 2] = sz;
+              endAttr[base + 0] = ex;
+              endAttr[base + 1] = ey;
+              endAttr[base + 2] = ez;
+              sideAttr[v] = side;
+              alongAttr[v] = along;
+              resourceAttr[v] = resId;
+              radiusAttr[v] = radius;
+              v += 1;
+            };
+
+            writeVertex(0, -1);
+            writeVertex(0, 1);
+            writeVertex(1, -1);
+            writeVertex(1, 1);
+
+            const baseIndex = line * 4;
+            indices[i++] = baseIndex + 0;
+            indices[i++] = baseIndex + 2;
+            indices[i++] = baseIndex + 1;
+            indices[i++] = baseIndex + 2;
+            indices[i++] = baseIndex + 3;
+            indices[i++] = baseIndex + 1;
+          }
+
+          const lineGeom = new THREE.BufferGeometry();
+          lineGeom.setAttribute("position", new THREE.BufferAttribute(startAttr, 3));
+          lineGeom.setAttribute("aStart", new THREE.BufferAttribute(startAttr, 3));
+          lineGeom.setAttribute("aEnd", new THREE.BufferAttribute(endAttr, 3));
+          lineGeom.setAttribute("aSide", new THREE.BufferAttribute(sideAttr, 1));
+          lineGeom.setAttribute("aAlong", new THREE.BufferAttribute(alongAttr, 1));
+          lineGeom.setAttribute("virtualResourceId", new THREE.BufferAttribute(resourceAttr, 1));
+          lineGeom.setAttribute("aRadius", new THREE.BufferAttribute(radiusAttr, 1));
+          lineGeom.setIndex(new THREE.BufferAttribute(indices, 1));
+
+          const lineMat = new THREE.ShaderMaterial({
+            transparent: true,
+            depthWrite: false,
+            uniforms: {
+              uResolution: { value: new THREE.Vector2(1, 1) },
+              uLineWidth: { value: 1.5 },
+              uColor: { value: new THREE.Color(0x0f172a) },
+              uOpacity: { value: 0.5 },
+            },
+            vertexShader: `
+              uniform vec2 uResolution;
+              uniform float uLineWidth;
+              attribute vec3 aStart;
+              attribute vec3 aEnd;
+              attribute float aSide;
+              attribute float aAlong;
+              attribute float aRadius;
+
+              void main() {
+                vec4 start = modelViewMatrix * vec4(aStart, 1.0);
+                vec4 end = modelViewMatrix * vec4(aEnd, 1.0);
+                vec4 startClip = projectionMatrix * start;
+                vec4 endClip = projectionMatrix * end;
+
+                vec2 startNdc = startClip.xy / startClip.w;
+                vec2 endNdc = endClip.xy / endClip.w;
+                vec2 delta = endNdc - startNdc;
+                float len = length(delta);
+                vec2 dir = normalize(delta);
+                if (len < 0.0001) {
+                  dir = vec2(1.0, 0.0);
+                }
+                vec2 normal = vec2(-dir.y, dir.x);
+                float width = uLineWidth;
+                float taper = smoothstep(0.08, 0.2, aAlong) * smoothstep(0.08, 0.2, 1.0 - aAlong);
+                vec2 offset = normal * (width / uResolution) * 2.0 * taper;
+
+                vec4 clip = mix(startClip, endClip, aAlong);
+                clip.xy += offset * aSide * clip.w;
+                gl_Position = clip;
+              }
+            `,
+            fragmentShader: `
+              uniform vec3 uColor;
+              uniform float uOpacity;
+              void main() {
+                gl_FragColor = vec4(uColor, uOpacity);
+              }
+            `,
+          });
+
+          const lines = new THREE.Mesh(lineGeom, lineMat);
+          lines.userData.isBeamLatticeLines = true;
+          lines.frustumCulled = false;
+          lines.userData.isBeamLatticeLines = true;
+          lines.renderOrder = 2;
+          lines.onBeforeRender = (renderer) => {
+            const size = renderer.getSize(new THREE.Vector2());
+            lineMat.uniforms.uResolution.value.set(size.x, size.y);
+          };
+          group.add(lines);
+        }
       }
 
-      if (!parsed.geometry || parsed.geometry.vertexCount === 0) {
+      if (!parsed.geometry || (parsed.geometry.vertexCount === 0 && !parsed.geometry.beamLines?.positions?.length)) {
         throw new Error("No geometry in 3MF file.");
       }
 

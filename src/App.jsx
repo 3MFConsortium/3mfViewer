@@ -453,6 +453,7 @@ function ViewerApp() {
 
         const rawResult = await load3mf(arrayBuffer, fileLabel, {
           specificationUrls: specUrls,
+          beamLatticeLinesOnly: prefs.beamLatticeMode === "lines",
           onStream: (partial) => {
             if (!partial?.group) return;
             setLoadingScene(partial.group, partial);
@@ -861,6 +862,7 @@ function ViewerApp() {
 
         const rawResult = await load3mf(arrayBuffer, fileName, {
           specificationUrls: specUrls,
+          beamLatticeLinesOnly: prefs.beamLatticeMode === "lines",
           onStream: (partial) => {
             if (!partial?.group) return;
             setLoadingScene(partial.group, partial);

@@ -1469,7 +1469,10 @@ export class Lib3mfEngine {
         }
     }
 
-    generateBeamGeometry(beamLattice, vertexPositions, segments = 4) {
+    generateBeamGeometry(beamLattice, vertexPositions, options = {}) {
+        const segments = Number.isFinite(options.segments) ? Math.max(3, Math.floor(options.segments)) : 4;
+        const includeCaps = options.includeCaps !== false;
+        const includeBalls = options.includeBalls !== false;
         const { beams, balls } = beamLattice;
         if (!beams || beams.length === 0) return null;
 
@@ -1509,10 +1512,10 @@ export class Lib3mfEngine {
 
         // Calculate total triangles needed
         // Tube sides: segments * 2 triangles, plus end caps: segments * 2 triangles (one per end)
-        const trianglesPerBeam = segments * 2 + segments * 2; // Sides + both end caps
-        const trianglesPerBall = segments * (segments / 2) * 2; // Simplified sphere
+        const trianglesPerBeam = segments * 2 + (includeCaps ? segments * 2 : 0); // Sides + optional caps
+        const trianglesPerBall = includeBalls ? segments * (segments / 2) * 2 : 0; // Simplified sphere
         const totalBeamTriangles = beams.length * trianglesPerBeam;
-        const totalBallTriangles = (balls?.length ?? 0) * trianglesPerBall;
+        const totalBallTriangles = includeBalls ? (balls?.length ?? 0) * trianglesPerBall : 0;
         const totalTriangles = totalBeamTriangles + totalBallTriangles;
         const totalVertices = totalTriangles * 3;
 
@@ -1570,25 +1573,27 @@ export class Lib3mfEngine {
                 writeVertex(v3.x, v3.y, v3.z);
             }
 
-            // Generate end caps (triangle fans from center to ring)
-            // Cap at p0 end
-            for (let i = 0; i < segments; i++) {
-                const next = (i + 1) % segments;
-                writeVertex(p0.x, p0.y, p0.z);
-                writeVertex(ring0[next].x, ring0[next].y, ring0[next].z);
-                writeVertex(ring0[i].x, ring0[i].y, ring0[i].z);
-            }
-            // Cap at p1 end
-            for (let i = 0; i < segments; i++) {
-                const next = (i + 1) % segments;
-                writeVertex(p1.x, p1.y, p1.z);
-                writeVertex(ring1[i].x, ring1[i].y, ring1[i].z);
-                writeVertex(ring1[next].x, ring1[next].y, ring1[next].z);
+            if (includeCaps) {
+                // Generate end caps (triangle fans from center to ring)
+                // Cap at p0 end
+                for (let i = 0; i < segments; i++) {
+                    const next = (i + 1) % segments;
+                    writeVertex(p0.x, p0.y, p0.z);
+                    writeVertex(ring0[next].x, ring0[next].y, ring0[next].z);
+                    writeVertex(ring0[i].x, ring0[i].y, ring0[i].z);
+                }
+                // Cap at p1 end
+                for (let i = 0; i < segments; i++) {
+                    const next = (i + 1) % segments;
+                    writeVertex(p1.x, p1.y, p1.z);
+                    writeVertex(ring1[i].x, ring1[i].y, ring1[i].z);
+                    writeVertex(ring1[next].x, ring1[next].y, ring1[next].z);
+                }
             }
         }
 
         // Generate simplified balls (low-poly spheres)
-        if (balls && balls.length > 0) {
+        if (includeBalls && balls && balls.length > 0) {
             const latSegments = segments / 2;
             const lonSegments = segments;
             for (const ball of balls) {
@@ -1760,19 +1765,38 @@ export class Lib3mfEngine {
 
                             beamLatticeInfo = this.readBeamLattice(current, nodePositions);
                             if (beamLatticeInfo) {
-                                const beamGeometry = this.generateBeamGeometry(beamLatticeInfo, nodePositions);
-                                if (beamGeometry && beamGeometry.triangleCount > 0) {
+                                const linesOnly = this.options?.beamLatticeLinesOnly === true;
+                                if (linesOnly) {
                                     isBeamLattice = true;
                                     geometryInfo = {
-                                        positions: beamGeometry.positions,
+                                        positions: new Float32Array(0),
                                         indices: null,
                                         triangleProperties: [],
-                                        vertexCount: beamGeometry.vertexCount,
-                                        triangleCount: beamGeometry.triangleCount,
+                                        vertexCount: 0,
+                                        triangleCount: 0,
                                         isBeamLattice: true,
                                         beamLattice: beamLatticeInfo,
                                         nodePositions,
                                     };
+                                } else {
+                                    const beamGeometry = this.generateBeamGeometry(beamLatticeInfo, nodePositions, {
+                                        segments: 3,
+                                        includeCaps: false,
+                                        includeBalls: false,
+                                    });
+                                    if (beamGeometry && beamGeometry.triangleCount > 0) {
+                                        isBeamLattice = true;
+                                        geometryInfo = {
+                                            positions: beamGeometry.positions,
+                                            indices: null,
+                                            triangleProperties: [],
+                                            vertexCount: beamGeometry.vertexCount,
+                                            triangleCount: beamGeometry.triangleCount,
+                                            isBeamLattice: true,
+                                            beamLattice: beamLatticeInfo,
+                                            nodePositions,
+                                        };
+                                    }
                                 }
                             }
                         }
@@ -1819,6 +1843,7 @@ export class Lib3mfEngine {
                             hasUUID: resourceHasUUID,
                             isBeamLattice,
                             beamLattice: beamLatticeInfo,
+                            nodePositions: geometryInfo.nodePositions ?? null,
                         });
                     } else if (current.IsComponentsObject?.()) {
                         if (resourceId !== undefined && componentResources.has(resourceId)) {
@@ -2149,6 +2174,9 @@ export class Lib3mfEngine {
             const flatUV = new Float32Array(totalVertices * 2);
             const flatMaterialIndex = new Float32Array(totalVertices); // For debugging or specialized shaders
             const flatResourceId = new Float32Array(totalVertices); // Resource ID per vertex for visibility toggling
+            const beamLinePositions = [];
+            const beamLineResourceIds = [];
+            const beamLineRadii = [];
 
             // Material/Group tracking
             // We want to group by Texture ID / Material configuration to minimize draw calls in THREE.
@@ -2271,6 +2299,31 @@ export class Lib3mfEngine {
                 const hasUV = !!textureCoordinates;
                 const fallbackColor = resource.baseColor || { r: 1, g: 1, b: 1 };
                 const isBeamLattice = resource.isBeamLattice === true;
+                if (isBeamLattice && resource.beamLattice?.beams && resource.nodePositions) {
+                    const nodePositions = resource.nodePositions;
+                    const getNode = (index) => {
+                        const offset = index * 3;
+                        return {
+                            x: nodePositions[offset],
+                            y: nodePositions[offset + 1],
+                            z: nodePositions[offset + 2],
+                        };
+                    };
+                    for (const beam of resource.beamLattice.beams) {
+                        const p0 = getNode(beam.indices[0]);
+                        const p1 = getNode(beam.indices[1]);
+                        const tp0 = applyMat4ToPoint(matrix, p0.x, p0.y, p0.z);
+                        const tp1 = applyMat4ToPoint(matrix, p1.x, p1.y, p1.z);
+                        beamLinePositions.push(
+                            tp0.x, tp0.y, tp0.z,
+                            tp1.x, tp1.y, tp1.z
+                        );
+                        const resId = resource.resourceId ?? 0;
+                        beamLineResourceIds.push(resId, resId);
+                        const avgRadius = (beam.radii[0] + beam.radii[1]) * 0.5;
+                        beamLineRadii.push(avgRadius);
+                    }
+                }
 
                 for (let t = 0; t < triCount; t++) {
                     // Indices in source mesh are for vertices, but vertexColors/textureCoordinates are per-triangle-vertex (flattened).
@@ -2348,7 +2401,14 @@ export class Lib3mfEngine {
                 uvs: flatUV,
                 resourceIds: flatResourceId,
                 groups,
-                vertexCount: vertexCursor
+                vertexCount: vertexCursor,
+                beamLines: beamLinePositions.length
+                    ? {
+                        positions: new Float32Array(beamLinePositions),
+                        resourceIds: new Float32Array(beamLineResourceIds),
+                        radii: new Float32Array(beamLineRadii),
+                    }
+                    : null,
             };
 
             console.log(`[lib3mf] Geometry flattened. Triangles: ${totalTriangles}, Vertices: ${vertexCursor}, Groups: ${groups.length}`);
