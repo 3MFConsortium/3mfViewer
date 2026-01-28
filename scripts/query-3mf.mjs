@@ -4,7 +4,7 @@ import fs from "fs";
 import path from "path";
 import process from "process";
 
-import lib3mf from "@tensorgrad/lib3mf";
+import lib3mf from "@3mfconsortium/lib3mf";
 
 import { loadThreeMFModel } from "../src/lib/lib3mfEngine.js";
 

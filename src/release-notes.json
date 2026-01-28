@@ -1,4 +1,7 @@
 {
+  "0.26.0": [
+    "Switched to @3mfconsortium/lib3mf from the official 3MF Consortium npm organization"
+  ],
   "0.25.0": [
     "UI refresh with black/white color scheme replacing teal accents",
     "Dark mode now has optimized lighting with brighter hemisphere and rim lights",

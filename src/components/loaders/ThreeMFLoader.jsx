@@ -1,6 +1,6 @@
 import React, { useCallback, useMemo, useRef, useEffect } from "react";
 import * as THREE from "three";
-import lib3mf from "@tensorgrad/lib3mf";
+import lib3mf from "@3mfconsortium/lib3mf";
 
 import { ThreeMFLoaderContext } from "./ThreeMFLoaderContext.js";
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { performance } from 'perf_hooks'
-import lib3mf from '@tensorgrad/lib3mf'
+import lib3mf from '@3mfconsortium/lib3mf'
 import { Lib3mfEngine } from '../src/lib/lib3mfEngine'
 import fs from 'fs'
 import path from 'path'

@@ -1,5 +1,5 @@
 import fs from "node:fs";
-import lib3mf from "@tensorgrad/lib3mf";
+import lib3mf from "@3mfconsortium/lib3mf";
 
 const filePath = process.argv[2];
 if (!filePath) {
