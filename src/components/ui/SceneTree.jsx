@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useViewerStore } from "../../stores/viewerStore.js";
 import {
@@ -215,7 +215,10 @@ export function SceneTree({
   const setInfoCollapsed = (collapsed) => setSceneTreeState({ infoCollapsed: collapsed });
   const setSpecModalOpen = (open) => setSceneTreeState({ specModalOpen: open });
   const setSpecInputValue = (value) => setSceneTreeState({ specInputValue: value });
-  const setMaterialModalOpen = (open) => setSceneTreeState({ materialModalOpen: open });
+  const setMaterialModalOpen = useCallback(
+    (open) => setSceneTreeState({ materialModalOpen: open }),
+    [setSceneTreeState]
+  );
   const setLocalSpecResults = (value) => setSceneTreeState({ localSpecResults: value });
 
   const handleFileClick = () => inputRef.current?.click();
@@ -1107,6 +1110,8 @@ export function SceneTree({
   const hasUuidInfo = Boolean(selectedMeta?.uuid || selectedMeta?.buildItemUuid || selectedMeta?.hasUUID !== undefined);
   const hasMaterialUsage = materialUsageDetails.length > 0;
   const hasSliceStackDetails = Boolean(sliceStackDetails);
+  const sliceCount =
+    sliceStackDetails?.stack?.sliceCount ?? sliceStackDetails?.diag?.sliceCount ?? null;
   const modalHasContent =
     hasMaterialUsage || hasMetadataEntries || hasComponentsList || hasTransformsList || hasUuidInfo || hasSliceStackDetails;
 
@@ -1114,7 +1119,7 @@ export function SceneTree({
     if (!modalHasContent && materialModalOpen) {
       setMaterialModalOpen(false);
     }
-  }, [modalHasContent, materialModalOpen]);
+  }, [modalHasContent, materialModalOpen, setMaterialModalOpen]);
 
   const specModal = (
     <Modal
@@ -1345,11 +1350,11 @@ export function SceneTree({
                   </div>
                 </li>
               ) : null}
-              {(sliceStackDetails.stack?.sliceCount ?? sliceStackDetails.diag?.sliceCount) ? (
+              {sliceCount !== null && sliceCount !== undefined ? (
                 <li className="rounded-xl border border-border bg-surface-elevated/90 px-3 py-2">
                   <div className="text-[0.7rem] font-semibold text-text-secondary">Slice count</div>
                   <div className="mt-1 text-[0.7rem] text-text-primary tabular-nums">
-                    {(sliceStackDetails.stack?.sliceCount ?? sliceStackDetails.diag?.sliceCount).toLocaleString()}
+                    {Number(sliceCount).toLocaleString()}
                   </div>
                 </li>
               ) : null}

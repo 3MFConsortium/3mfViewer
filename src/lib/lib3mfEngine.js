@@ -35,23 +35,6 @@ function toInt(v) {
     return Number.isFinite(n) ? n : null;
 }
 
-function coerceVector(value, mapFn) {
-    if (!value) return [];
-    const out = [];
-    if (Array.isArray(value)) {
-        for (const entry of value) out.push(entry);
-    } else if (typeof value.size === "function" && typeof value.get === "function") {
-        const count = value.size();
-        for (let i = 0; i < count; i += 1) out.push(value.get(i));
-    } else if (typeof value.length === "number") {
-        for (let i = 0; i < value.length; i += 1) out.push(value[i]);
-    }
-    if (mapFn) {
-        return out.map(mapFn);
-    }
-    return out;
-}
-
 const SPECIFICATION_URL = "http://schemas.microsoft.com/3dmanufacturing/core/2015/02";
 
 // --- Matrix Math Helpers for Component Transforms ---
@@ -549,7 +532,7 @@ export class Lib3mfEngine {
         } catch (err) {
             try {
                 const path = attachment.GetPath?.() || "attachment.bin";
-                const safeName = String(path).replace(/[^\w.\-]+/g, "_");
+                const safeName = String(path).replace(/[^\w.-]+/g, "_");
                 const fsPath = `/tmp/${Date.now()}_${safeName}`;
                 attachment.WriteToFile?.(fsPath);
                 const data = this.lib?.FS?.readFile?.(fsPath);
@@ -846,7 +829,7 @@ export class Lib3mfEngine {
             const ordered = [];
 
             // group.coords is array of { propertyId, u, v }
-            group.coords.forEach((entry, index) => {
+            group.coords.forEach((entry) => {
                 const normalized = normalizePropertyId(entry.propertyId);
                 const uv = { u: entry.u, v: 1.0 - entry.v };
 
@@ -872,7 +855,6 @@ export class Lib3mfEngine {
             // To support both (ID-based and Index-based) lookups efficiently:
             // We can just mirror what buildMaterialLookupMaps does.
 
-            const ids = group.propertyIds; // array of IDs
             // group.coords is array of objects { propertyId, u, v } corresponding to 'ids' indices?
             // Actually readTexture2DGroupEntries implementation:
             // ids.push(chosenId);
@@ -1115,8 +1097,6 @@ export class Lib3mfEngine {
         // Output: Float32Array (triangleCount * 3 * 2) -> [u1, v1, u2, v2, u3, v3, ...] per triangle
         const textureCoordinates = new Float32Array(triangleCount * 6);
         let trianglesWithTexture = 0;
-        let globalTextureId = null;
-
         // We'll track which texture IDs are used. 
         // Ideally a mesh uses a single texture map, but 3MF allows per-triangle materials.
         // We'll optimistically look for a dominant texture ID. 
@@ -1360,7 +1340,7 @@ export class Lib3mfEngine {
         };
     }
 
-    readBeamLattice(meshObj, vertexPositions) {
+    readBeamLattice(meshObj) {
         let beamLattice = null;
         try {
             beamLattice = meshObj.BeamLattice?.();
@@ -1395,12 +1375,10 @@ export class Lib3mfEngine {
             }
 
             // Get ball options to determine if we should auto-generate balls
-            let ballMode = 0; // 0=None, 1=Mixed, 2=All
             let defaultBallRadius = 0;
             try {
                 const ballOptions = beamLattice.GetBallOptions?.();
                 if (ballOptions) {
-                    ballMode = ballOptions.BallMode ?? 0;
                     defaultBallRadius = ballOptions.BallRadius ?? 0;
                 }
             } catch (err) {
@@ -1763,7 +1741,7 @@ export class Lib3mfEngine {
                                 safeDelete(vertex);
                             }
 
-                            beamLatticeInfo = this.readBeamLattice(current, nodePositions);
+                            beamLatticeInfo = this.readBeamLattice(current);
                             if (beamLatticeInfo) {
                                 const linesOnly = this.options?.beamLatticeLinesOnly === true;
                                 if (linesOnly) {
@@ -2137,8 +2115,6 @@ export class Lib3mfEngine {
 
             // --- FLATTEN GEOMETRY ---
             // We now flatten the geometry on the worker thread to avoid heavy lifting in the loader.
-            const buildStart = performance.now();
-
             // 1. Calculate total size
             const countTriangles = (resourceId, visited = new Set()) => {
                 if (meshResources.has(resourceId)) {
@@ -2169,10 +2145,8 @@ export class Lib3mfEngine {
 
             // Allocate buffers
             const flatPosition = new Float32Array(totalVertices * 3);
-            const flatNormal = new Float32Array(totalVertices * 3); // Placeholder, or compute if needed
             const flatColor = new Float32Array(totalVertices * 3);
             const flatUV = new Float32Array(totalVertices * 2);
-            const flatMaterialIndex = new Float32Array(totalVertices); // For debugging or specialized shaders
             const flatResourceId = new Float32Array(totalVertices); // Resource ID per vertex for visibility toggling
             const beamLinePositions = [];
             const beamLineResourceIds = [];
@@ -2214,7 +2188,6 @@ export class Lib3mfEngine {
                     if (res && res.components) {
                         for (const comp of res.components) {
                             const localMat = comp.transform4x3 ? mat4From3mf(comp.transform4x3) : mat4Identity();
-                            const nextMat = mat4Multiply(localMat, matrix); // matrix * local? Or local * matrix?
                             // THREE: parent * child. 
                             // Here 'matrix' is parent transform (accumulated). 'localMat' is child.
                             // So we want: result = matrix * localMat.
@@ -2284,7 +2257,7 @@ export class Lib3mfEngine {
                 }
 
                 // Append geometry
-                const { positions: posSrc, indices, vertexColors, textureCoordinates, triangleProperties, objectLevelProperty } = resource;
+                const { positions: posSrc, indices, vertexColors, textureCoordinates } = resource;
                 const triCount = resource.triangleCount;
 
                 // Helper to resolve colors/uvs per triangle if not pre-calculated (some pre-calc done in readMeshGeometry)

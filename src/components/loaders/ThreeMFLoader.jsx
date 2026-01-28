@@ -15,30 +15,6 @@ const DEFAULT_PALETTE = [
   "#8b5cf6",
 ];
 
-const matrixFromTransform43 = (matrix43) => {
-  if (!Array.isArray(matrix43) || matrix43.length !== 4) return null;
-  const m = new THREE.Matrix4();
-  m.set(
-    matrix43[0][0],
-    matrix43[0][1],
-    matrix43[0][2],
-    matrix43[3][0],
-    matrix43[1][0],
-    matrix43[1][1],
-    matrix43[1][2],
-    matrix43[3][1],
-    matrix43[2][0],
-    matrix43[2][1],
-    matrix43[2][2],
-    matrix43[3][2],
-    0,
-    0,
-    0,
-    1
-  );
-  return m;
-};
-
 export function ThreeMFLoaderProvider({ children }) {
   const lib3mfRef = useRef(null);
   const workerRef = useRef(null);
@@ -88,12 +64,13 @@ export function ThreeMFLoaderProvider({ children }) {
   }, []);
 
   useEffect(() => {
+    const pending = pendingLoadsRef.current;
     return () => {
       if (workerRef.current) {
         workerRef.current.terminate();
         workerRef.current = null;
       }
-      pendingLoadsRef.current.clear();
+      pending.clear();
     };
   }, []);
 
@@ -132,7 +109,7 @@ export function ThreeMFLoaderProvider({ children }) {
             [workerBuffer]
           );
         });
-      } catch (err) {
+      } catch {
         try {
           workerRef.current?.terminate?.();
         } finally {
@@ -732,7 +709,7 @@ export function ThreeMFLoaderProvider({ children }) {
 
       return resultPayload;
     },
-    [ensureWorker]
+    [ensureLib3mf, ensureWorker]
   );
 
   const contextValue = useMemo(

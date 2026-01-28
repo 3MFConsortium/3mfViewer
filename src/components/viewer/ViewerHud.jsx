@@ -1,6 +1,6 @@
 import React from "react";
 import { useViewerStore } from "../../stores/viewerStore.js";
-import { useTheme } from "../../contexts/ThemeContext.jsx";
+import { useTheme } from "../../contexts/themeStore.js";
 import { IconMenu, IconQuestion, IconPrefs, IconSun, IconMoon, IconMonitor } from "../ui/Icons.jsx";
 
 export function ViewerHud({
@@ -11,7 +11,6 @@ export function ViewerHud({
   hidden = false,
   hasSidenav = false,
 }) {
-  if (hidden) return null;
   const showSceneTree = useViewerStore((state) => state.prefs.uiSceneTree);
   const showStats = useViewerStore((state) => state.prefs.showStats);
   const mobileNavOpen = useViewerStore((state) => state.ui.mobileNavOpen);
@@ -27,6 +26,8 @@ export function ViewerHud({
 
   // On desktop with sidenav, navbar and overlays start after sidenav
   const leftOffset = hasSidenav ? "lg:left-72" : "lg:left-0";
+
+  if (hidden) return null;
 
   return (
     <>

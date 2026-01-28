@@ -1,4 +1,9 @@
 {
+  "0.28.0": [
+    "Refactored viewer layout and scene panels into dedicated components for easier contribution",
+    "Moved camera controls, scene metadata, and viewer control wiring into focused hooks/modules",
+    "Improved startup sample modal responsiveness on mobile"
+  ],
   "0.27.0": [
     "Beam lattice rendering support is available. It supports lines-only and hybrid modes for better FPS/clarity"
   ],

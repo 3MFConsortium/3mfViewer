@@ -80,3 +80,4 @@ describe('Lib3mfEngine Integration', () => {
         )
     })
 })
+/* global __dirname, process */

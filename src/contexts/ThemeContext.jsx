@@ -1,6 +1,6 @@
-import { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 
-const ThemeContext = createContext(null);
+import { ThemeContext } from "./themeStore.js";
 
 const THEME_KEY = "3mf-viewer-theme";
 const VALID_THEMES = ["light", "dark", "auto"];
@@ -30,7 +30,7 @@ const applyTheme = (effectiveTheme) => {
 /**
  * Get stored theme preference
  */
-const getStoredTheme = () => {
+const getStoredTheme = (fallbackTheme) => {
   try {
     const stored = localStorage.getItem(THEME_KEY);
     if (stored && VALID_THEMES.includes(stored)) {
@@ -39,7 +39,7 @@ const getStoredTheme = () => {
   } catch {
     // localStorage not available
   }
-  return "auto";
+  return fallbackTheme;
 };
 
 /**
@@ -62,7 +62,7 @@ export function ThemeProvider({ children, defaultTheme = "auto" }) {
     // Prevent transitions on initial load
     document.documentElement.classList.add("no-transitions");
 
-    const stored = getStoredTheme();
+    const stored = getStoredTheme(defaultTheme);
     const effectiveTheme = getEffectiveTheme(stored);
     applyTheme(effectiveTheme);
 
@@ -178,14 +178,3 @@ export function ThemeProvider({ children, defaultTheme = "auto" }) {
     </ThemeContext.Provider>
   );
 }
-
-export function useTheme() {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error("useTheme must be used within a ThemeProvider");
-  }
-  return context;
-}
-
-// Export for direct use without hook
-export { ThemeContext };

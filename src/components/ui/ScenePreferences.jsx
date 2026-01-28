@@ -1,7 +1,7 @@
 import React from "react";
 
 import { useViewerStore } from "../../stores/viewerStore.js";
-import { useTheme } from "../../contexts/ThemeContext.jsx";
+import { useTheme } from "../../contexts/themeStore.js";
 import { IconSun, IconMoon, IconMonitor } from "./Icons.jsx";
 
 const tabs = [

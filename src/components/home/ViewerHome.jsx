@@ -27,8 +27,8 @@ export function ViewerHome({
   });
 
   return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-      <div className="relative w-full max-w-lg mx-4 rounded-3xl bg-surface-elevated shadow-2xl border border-border overflow-hidden">
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 backdrop-blur-sm px-3 py-4 sm:px-6 sm:py-8">
+      <div className="relative flex w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-border bg-surface-elevated shadow-2xl sm:rounded-3xl max-h-[calc(100dvh-2rem)]">
         {/* Drag active overlay */}
         {dragActive && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-accent/10 border-2 border-dashed border-accent rounded-3xl">
@@ -42,7 +42,7 @@ export function ViewerHome({
         {showReleaseNotes ? (
           /* Release Notes View */
           <>
-            <div className="px-8 pt-6 pb-4 border-b border-border bg-gradient-to-b from-surface to-surface-elevated">
+            <div className="px-5 pt-6 pb-4 border-b border-border bg-gradient-to-b from-surface to-surface-elevated sm:px-8">
               <button
                 type="button"
                 onClick={() => setShowReleaseNotes(false)}
@@ -59,7 +59,7 @@ export function ViewerHome({
               </p>
             </div>
 
-            <div className="max-h-80 overflow-y-auto px-8 py-6">
+            <div className="flex-1 overflow-y-auto px-5 py-6 sm:px-8">
               {versionKeys.map((ver, idx) => (
                 <div key={ver} className={idx > 0 ? "mt-6 pt-6 border-t border-border" : ""}>
                   <h3 className="text-sm font-semibold text-text-primary flex items-center gap-2">
@@ -82,7 +82,7 @@ export function ViewerHome({
               ))}
             </div>
 
-            <div className="px-8 py-4 bg-surface border-t border-border">
+            <div className="px-5 py-4 bg-surface border-t border-border sm:px-8">
               <a
                 href="https://3mf.io/"
                 target="_blank"
@@ -97,12 +97,12 @@ export function ViewerHome({
           /* Main View */
           <>
             {/* Header with gradient */}
-            <div className="relative px-8 pt-10 pb-6 text-center bg-gradient-to-b from-surface to-surface-elevated">
+            <div className="relative px-5 pt-8 pb-6 text-center bg-gradient-to-b from-surface to-surface-elevated sm:px-8 sm:pt-10">
               {/* Logo */}
               <img
                 src="/3mf_logo.png"
                 alt="3MF"
-                className="h-16 w-auto mx-auto dark-invert"
+                className="h-12 w-auto mx-auto dark-invert sm:h-16"
                 draggable={false}
               />
 
@@ -119,7 +119,7 @@ export function ViewerHome({
               {/* Browse Button */}
               <button
                 type="button"
-                className={`mt-6 inline-flex items-center justify-center gap-2.5 rounded-full px-8 py-3.5 text-base font-semibold transition-all ${
+                className={`mt-6 inline-flex w-full items-center justify-center gap-2.5 rounded-full px-6 py-3 text-base font-semibold transition-all sm:w-auto sm:px-8 sm:py-3.5 ${
                   loadingBrowse || dragActive
                     ? "bg-surface text-text-muted cursor-not-allowed"
                     : "bg-accent text-accent-foreground shadow-lg shadow-accent/25 hover:bg-accent-hover hover:shadow-xl hover:shadow-accent/30 hover:-translate-y-0.5"
@@ -138,7 +138,7 @@ export function ViewerHome({
 
             {/* Sample Models Section */}
             {!dragActive && sampleModels && sampleModels.length > 0 && (
-              <div className="px-8 py-6 border-t border-border bg-surface/50">
+              <div className="flex-1 overflow-y-auto px-5 py-6 border-t border-border bg-surface/50 sm:px-8">
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-xs font-semibold uppercase tracking-widest text-text-muted">
                     Sample Models
@@ -148,7 +148,7 @@ export function ViewerHome({
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {sampleModels.map((sample) => {
                     const isLoading = sampleLoading === sample.name;
                     return (
@@ -189,7 +189,7 @@ export function ViewerHome({
             )}
 
             {/* Footer */}
-            <div className="px-8 py-4 bg-surface border-t border-border flex items-center justify-between">
+            <div className="px-5 py-4 bg-surface border-t border-border flex items-center justify-between sm:px-8">
               <a
                 href="https://3mf.io/"
                 target="_blank"

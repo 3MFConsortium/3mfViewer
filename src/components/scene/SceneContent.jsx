@@ -13,7 +13,6 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
     object.traverse((child) => {
       if (!child.isMesh) return;
       if (child.userData?.isBeamLatticeLines) return;
-      if (child.userData?.isBeamLatticeLines) return;
       const materials = Array.isArray(child.material)
         ? child.material
         : [child.material];
@@ -71,7 +70,6 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
             resourceIdsInMesh.add(idAttr.getX(i));
           }
           // Hide mesh if ALL its resources are hidden, show if any are visible
-          const allHidden = [...resourceIdsInMesh].every(id => hiddenIds.has(id));
           const anyHidden = [...resourceIdsInMesh].some(id => hiddenIds.has(id));
           // For single-resource meshes, this works perfectly
           // For multi-resource meshes, hide if any resource is hidden (best we can do without custom shader)
