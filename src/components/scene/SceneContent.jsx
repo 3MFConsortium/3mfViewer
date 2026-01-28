@@ -74,6 +74,10 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
           // For multi-resource meshes, hide if any resource is hidden (best we can do without custom shader)
           child.visible = !anyHidden;
         }
+      } else if (child.userData?.isBeamLattice) {
+        // Beam lattice instanced meshes have a single resourceId
+        const resourceId = child.userData.resourceId;
+        child.visible = !hiddenIds.has(resourceId);
       } else {
         child.visible = !hiddenSet.has(child.uuid);
       }

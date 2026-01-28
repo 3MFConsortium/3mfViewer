@@ -1360,6 +1360,289 @@ export class Lib3mfEngine {
         };
     }
 
+    readBeamLattice(meshObj, vertexPositions) {
+        let beamLattice = null;
+        try {
+            beamLattice = meshObj.BeamLattice?.();
+        } catch (err) {
+            logCatch("readBeamLattice.BeamLattice() failed", err);
+            return null;
+        }
+        if (!beamLattice) return null;
+
+        try {
+            const beamCount = beamLattice.GetBeamCount?.() ?? 0;
+            if (beamCount === 0) {
+                safeDelete(beamLattice);
+                return null;
+            }
+
+            const beams = [];
+            for (let i = 0; i < beamCount; i++) {
+                try {
+                    const beam = beamLattice.GetBeam?.(i);
+                    if (beam) {
+                        beams.push({
+                            indices: [beam.get_Indices0?.() ?? 0, beam.get_Indices1?.() ?? 0],
+                            radii: [beam.get_Radii0?.() ?? 1, beam.get_Radii1?.() ?? 1],
+                            capModes: [beam.get_CapModes0?.() ?? 0, beam.get_CapModes1?.() ?? 0],
+                        });
+                        safeDelete(beam);
+                    }
+                } catch (err) {
+                    logCatch(`readBeamLattice.GetBeam(${i}) failed`, err);
+                }
+            }
+
+            // Get ball options to determine if we should auto-generate balls
+            let ballMode = 0; // 0=None, 1=Mixed, 2=All
+            let defaultBallRadius = 0;
+            try {
+                const ballOptions = beamLattice.GetBallOptions?.();
+                if (ballOptions) {
+                    ballMode = ballOptions.BallMode ?? 0;
+                    defaultBallRadius = ballOptions.BallRadius ?? 0;
+                }
+            } catch (err) {
+                logCatch("readBeamLattice.GetBallOptions failed", err);
+            }
+
+            const balls = [];
+            const ballCount = beamLattice.GetBallCount?.() ?? 0;
+            for (let i = 0; i < ballCount; i++) {
+                try {
+                    const ball = beamLattice.GetBall?.(i);
+                    if (ball) {
+                        balls.push({
+                            index: ball.get_Index?.() ?? 0,
+                            radius: ball.get_Radius?.() ?? defaultBallRadius,
+                        });
+                        safeDelete(ball);
+                    }
+                } catch (err) {
+                    logCatch(`readBeamLattice.GetBall(${i}) failed`, err);
+                }
+            }
+
+            // Auto-generate balls at all beam nodes for visual effect
+            // Calculate average radius at each node from connected beams
+            const nodeRadii = new Map(); // nodeIndex -> [radii]
+            for (const beam of beams) {
+                const idx0 = beam.indices[0];
+                const idx1 = beam.indices[1];
+                if (!nodeRadii.has(idx0)) nodeRadii.set(idx0, []);
+                if (!nodeRadii.has(idx1)) nodeRadii.set(idx1, []);
+                nodeRadii.get(idx0).push(beam.radii[0]);
+                nodeRadii.get(idx1).push(beam.radii[1]);
+            }
+
+            // Add balls at nodes that don't already have explicit balls
+            const existingBallNodes = new Set(balls.map(b => b.index));
+            for (const [nodeIndex, radii] of nodeRadii) {
+                if (!existingBallNodes.has(nodeIndex)) {
+                    // Use average radius of connected beams, larger for visual effect to cover intersections
+                    const avgRadius = radii.reduce((a, b) => a + b, 0) / radii.length;
+                    balls.push({
+                        index: nodeIndex,
+                        radius: avgRadius * 1.5, // 50% larger than beam radius to cover intersections
+                    });
+                }
+            }
+
+            const minLength = beamLattice.GetMinLength?.() ?? 0;
+
+            safeDelete(beamLattice);
+
+            if (beams.length === 0) return null;
+
+            return {
+                beams,
+                balls,
+                minLength,
+                beamCount: beams.length,
+                ballCount: balls.length,
+            };
+        } catch (err) {
+            logCatch("readBeamLattice failed", err);
+            safeDelete(beamLattice);
+            return null;
+        }
+    }
+
+    generateBeamGeometry(beamLattice, vertexPositions, segments = 4) {
+        const { beams, balls } = beamLattice;
+        if (!beams || beams.length === 0) return null;
+
+        const getVertex = (index) => {
+            const offset = index * 3;
+            return {
+                x: vertexPositions[offset],
+                y: vertexPositions[offset + 1],
+                z: vertexPositions[offset + 2],
+            };
+        };
+
+        const normalize = (v) => {
+            const len = Math.sqrt(v.x * v.x + v.y * v.y + v.z * v.z);
+            if (len < 1e-10) return { x: 0, y: 1, z: 0 };
+            return { x: v.x / len, y: v.y / len, z: v.z / len };
+        };
+
+        const cross = (a, b) => ({
+            x: a.y * b.z - a.z * b.y,
+            y: a.z * b.x - a.x * b.z,
+            z: a.x * b.y - a.y * b.x,
+        });
+
+        const findPerpendicular = (v) => {
+            const absX = Math.abs(v.x), absY = Math.abs(v.y), absZ = Math.abs(v.z);
+            let other;
+            if (absX <= absY && absX <= absZ) {
+                other = { x: 1, y: 0, z: 0 };
+            } else if (absY <= absZ) {
+                other = { x: 0, y: 1, z: 0 };
+            } else {
+                other = { x: 0, y: 0, z: 1 };
+            }
+            return normalize(cross(v, other));
+        };
+
+        // Calculate total triangles needed
+        // Tube sides: segments * 2 triangles, plus end caps: segments * 2 triangles (one per end)
+        const trianglesPerBeam = segments * 2 + segments * 2; // Sides + both end caps
+        const trianglesPerBall = segments * (segments / 2) * 2; // Simplified sphere
+        const totalBeamTriangles = beams.length * trianglesPerBeam;
+        const totalBallTriangles = (balls?.length ?? 0) * trianglesPerBall;
+        const totalTriangles = totalBeamTriangles + totalBallTriangles;
+        const totalVertices = totalTriangles * 3;
+
+        const positions = new Float32Array(totalVertices * 3);
+        let posIdx = 0;
+
+        const writeVertex = (x, y, z) => {
+            positions[posIdx++] = x;
+            positions[posIdx++] = y;
+            positions[posIdx++] = z;
+        };
+
+        // Generate beam cylinders with end caps
+        for (const beam of beams) {
+            const p0 = getVertex(beam.indices[0]);
+            const p1 = getVertex(beam.indices[1]);
+            const r0 = beam.radii[0];
+            const r1 = beam.radii[1];
+
+            const axis = normalize({
+                x: p1.x - p0.x,
+                y: p1.y - p0.y,
+                z: p1.z - p0.z,
+            });
+            const perp1 = findPerpendicular(axis);
+            const perp2 = cross(axis, perp1);
+
+            const ring0 = [];
+            const ring1 = [];
+            for (let i = 0; i < segments; i++) {
+                const angle = (i / segments) * Math.PI * 2;
+                const cos = Math.cos(angle);
+                const sin = Math.sin(angle);
+                ring0.push({
+                    x: p0.x + (perp1.x * cos + perp2.x * sin) * r0,
+                    y: p0.y + (perp1.y * cos + perp2.y * sin) * r0,
+                    z: p0.z + (perp1.z * cos + perp2.z * sin) * r0,
+                });
+                ring1.push({
+                    x: p1.x + (perp1.x * cos + perp2.x * sin) * r1,
+                    y: p1.y + (perp1.y * cos + perp2.y * sin) * r1,
+                    z: p1.z + (perp1.z * cos + perp2.z * sin) * r1,
+                });
+            }
+
+            // Generate tube sides
+            for (let i = 0; i < segments; i++) {
+                const next = (i + 1) % segments;
+                const v0 = ring0[i], v1 = ring1[i], v2 = ring0[next], v3 = ring1[next];
+                writeVertex(v0.x, v0.y, v0.z);
+                writeVertex(v1.x, v1.y, v1.z);
+                writeVertex(v2.x, v2.y, v2.z);
+                writeVertex(v2.x, v2.y, v2.z);
+                writeVertex(v1.x, v1.y, v1.z);
+                writeVertex(v3.x, v3.y, v3.z);
+            }
+
+            // Generate end caps (triangle fans from center to ring)
+            // Cap at p0 end
+            for (let i = 0; i < segments; i++) {
+                const next = (i + 1) % segments;
+                writeVertex(p0.x, p0.y, p0.z);
+                writeVertex(ring0[next].x, ring0[next].y, ring0[next].z);
+                writeVertex(ring0[i].x, ring0[i].y, ring0[i].z);
+            }
+            // Cap at p1 end
+            for (let i = 0; i < segments; i++) {
+                const next = (i + 1) % segments;
+                writeVertex(p1.x, p1.y, p1.z);
+                writeVertex(ring1[i].x, ring1[i].y, ring1[i].z);
+                writeVertex(ring1[next].x, ring1[next].y, ring1[next].z);
+            }
+        }
+
+        // Generate simplified balls (low-poly spheres)
+        if (balls && balls.length > 0) {
+            const latSegments = segments / 2;
+            const lonSegments = segments;
+            for (const ball of balls) {
+                const center = getVertex(ball.index);
+                const radius = ball.radius;
+                for (let lat = 0; lat < latSegments; lat++) {
+                    const theta0 = (lat / latSegments) * Math.PI;
+                    const theta1 = ((lat + 1) / latSegments) * Math.PI;
+                    const sinT0 = Math.sin(theta0), cosT0 = Math.cos(theta0);
+                    const sinT1 = Math.sin(theta1), cosT1 = Math.cos(theta1);
+                    for (let lon = 0; lon < lonSegments; lon++) {
+                        const phi0 = (lon / lonSegments) * Math.PI * 2;
+                        const phi1 = ((lon + 1) / lonSegments) * Math.PI * 2;
+                        const sinP0 = Math.sin(phi0), cosP0 = Math.cos(phi0);
+                        const sinP1 = Math.sin(phi1), cosP1 = Math.cos(phi1);
+                        const p00 = {
+                            x: center.x + radius * sinT0 * cosP0,
+                            y: center.y + radius * sinT0 * sinP0,
+                            z: center.z + radius * cosT0,
+                        };
+                        const p01 = {
+                            x: center.x + radius * sinT0 * cosP1,
+                            y: center.y + radius * sinT0 * sinP1,
+                            z: center.z + radius * cosT0,
+                        };
+                        const p10 = {
+                            x: center.x + radius * sinT1 * cosP0,
+                            y: center.y + radius * sinT1 * sinP0,
+                            z: center.z + radius * cosT1,
+                        };
+                        const p11 = {
+                            x: center.x + radius * sinT1 * cosP1,
+                            y: center.y + radius * sinT1 * sinP1,
+                            z: center.z + radius * cosT1,
+                        };
+                        writeVertex(p00.x, p00.y, p00.z);
+                        writeVertex(p10.x, p10.y, p10.z);
+                        writeVertex(p01.x, p01.y, p01.z);
+                        writeVertex(p01.x, p01.y, p01.z);
+                        writeVertex(p10.x, p10.y, p10.z);
+                        writeVertex(p11.x, p11.y, p11.z);
+                    }
+                }
+            }
+        }
+
+        const triangleCount = posIdx / 9;
+        return {
+            positions,
+            triangleCount,
+            vertexCount: triangleCount * 3,
+        };
+    }
+
     loadFromBuffer(arrayBuffer, fileName, options = {}) {
         // merge options into instance
         this.options = { ...(this.options || {}), ...(options || {}) };
@@ -1452,13 +1735,56 @@ export class Lib3mfEngine {
                             safeDelete(current);
                             continue;
                         }
-                        const geometryInfo = this.readMeshGeometry(current);
+
+                        const vertexCount = current.GetVertexCount?.() ?? 0;
+                        const triangleCount = current.GetTriangleCount?.() ?? 0;
+
+                        let geometryInfo = null;
+                        let beamLatticeInfo = null;
+                        let isBeamLattice = false;
+
+                        if (triangleCount > 0) {
+                            geometryInfo = this.readMeshGeometry(current);
+                        }
+
+                        if (!geometryInfo && vertexCount > 0) {
+                            const nodePositions = new Float32Array(vertexCount * 3);
+                            for (let i = 0; i < vertexCount; i += 1) {
+                                const vertex = current.GetVertex(i);
+                                const offset = i * 3;
+                                nodePositions[offset] = vertex.get_Coordinates0();
+                                nodePositions[offset + 1] = vertex.get_Coordinates1();
+                                nodePositions[offset + 2] = vertex.get_Coordinates2();
+                                safeDelete(vertex);
+                            }
+
+                            beamLatticeInfo = this.readBeamLattice(current, nodePositions);
+                            if (beamLatticeInfo) {
+                                const beamGeometry = this.generateBeamGeometry(beamLatticeInfo, nodePositions);
+                                if (beamGeometry && beamGeometry.triangleCount > 0) {
+                                    isBeamLattice = true;
+                                    geometryInfo = {
+                                        positions: beamGeometry.positions,
+                                        indices: null,
+                                        triangleProperties: [],
+                                        vertexCount: beamGeometry.vertexCount,
+                                        triangleCount: beamGeometry.triangleCount,
+                                        isBeamLattice: true,
+                                        beamLattice: beamLatticeInfo,
+                                        nodePositions,
+                                    };
+                                }
+                            }
+                        }
+
                         if (!geometryInfo) {
                             safeDelete(current);
                             continue;
                         }
 
-                        const paletteColor = { r: 0.223, g: 0.741, b: 0.974, a: 1 };
+                        const paletteColor = isBeamLattice
+                            ? { r: 0.6, g: 0.6, b: 0.6, a: 1 }
+                            : { r: 0.223, g: 0.741, b: 0.974, a: 1 };
                         let rawName = null;
                         try {
                             rawName = typeof current.GetName === "function" ? current.GetName() : null;
@@ -1466,9 +1792,14 @@ export class Lib3mfEngine {
                             logCatch("loadFromBuffer.GetName for mesh object failed", err);
                             rawName = null;
                         }
-                        const displayName = rawName && rawName.length
-                            ? rawName
-                            : `Mesh ${resourceId ?? meshResources.size + 1}`;
+                        const trimmedName = rawName?.trim?.() || "";
+                        // Check if name is meaningful (not just underscores/numbers like "_1")
+                        const isMeaningfulName = trimmedName.length > 0 && !/^[_\-\d\s]+$/.test(trimmedName);
+                        const displayName = isMeaningfulName
+                            ? trimmedName
+                            : isBeamLattice
+                                ? `Beam Lattice ${resourceId ?? meshResources.size + 1}`
+                                : `Mesh ${resourceId ?? meshResources.size + 1}`;
                         const meshSummary = this.getMeshSummary(current);
 
                         meshResources.set(resourceId, {
@@ -1486,6 +1817,8 @@ export class Lib3mfEngine {
                             meshSummary,
                             uuid: resourceUuid,
                             hasUUID: resourceHasUUID,
+                            isBeamLattice,
+                            beamLattice: beamLatticeInfo,
                         });
                     } else if (current.IsComponentsObject?.()) {
                         if (resourceId !== undefined && componentResources.has(resourceId)) {
@@ -1937,9 +2270,11 @@ export class Lib3mfEngine {
                 const hasVC = !!vertexColors;
                 const hasUV = !!textureCoordinates;
                 const fallbackColor = resource.baseColor || { r: 1, g: 1, b: 1 };
+                const isBeamLattice = resource.isBeamLattice === true;
 
                 for (let t = 0; t < triCount; t++) {
                     // Indices in source mesh are for vertices, but vertexColors/textureCoordinates are per-triangle-vertex (flattened).
+                    // For beam lattice geometry, positions are already expanded (no indices).
                     // Wait, check readMeshGeometry:
                     // positions: vertexCount * 3 (indexed)
                     // indices: triangleCount * 3
@@ -1949,14 +2284,21 @@ export class Lib3mfEngine {
                     // So we must iterate triangles, get indices, lookup position, apply matrix, write to flatPosition.
                     // Then just copy/lookup color/uv.
 
-                    const idx0 = indices[t * 3 + 0];
-                    const idx1 = indices[t * 3 + 1];
-                    const idx2 = indices[t * 3 + 2];
-
-                    // Positions
-                    const v0 = applyMat4ToPoint(matrix, posSrc[idx0 * 3], posSrc[idx0 * 3 + 1], posSrc[idx0 * 3 + 2]);
-                    const v1 = applyMat4ToPoint(matrix, posSrc[idx1 * 3], posSrc[idx1 * 3 + 1], posSrc[idx1 * 3 + 2]);
-                    const v2 = applyMat4ToPoint(matrix, posSrc[idx2 * 3], posSrc[idx2 * 3 + 1], posSrc[idx2 * 3 + 2]);
+                    let v0, v1, v2;
+                    if (isBeamLattice) {
+                        // Beam lattice: positions are already expanded, no indices
+                        const srcOff = t * 9;
+                        v0 = applyMat4ToPoint(matrix, posSrc[srcOff + 0], posSrc[srcOff + 1], posSrc[srcOff + 2]);
+                        v1 = applyMat4ToPoint(matrix, posSrc[srcOff + 3], posSrc[srcOff + 4], posSrc[srcOff + 5]);
+                        v2 = applyMat4ToPoint(matrix, posSrc[srcOff + 6], posSrc[srcOff + 7], posSrc[srcOff + 8]);
+                    } else {
+                        const idx0 = indices[t * 3 + 0];
+                        const idx1 = indices[t * 3 + 1];
+                        const idx2 = indices[t * 3 + 2];
+                        v0 = applyMat4ToPoint(matrix, posSrc[idx0 * 3], posSrc[idx0 * 3 + 1], posSrc[idx0 * 3 + 2]);
+                        v1 = applyMat4ToPoint(matrix, posSrc[idx1 * 3], posSrc[idx1 * 3 + 1], posSrc[idx1 * 3 + 2]);
+                        v2 = applyMat4ToPoint(matrix, posSrc[idx2 * 3], posSrc[idx2 * 3 + 1], posSrc[idx2 * 3 + 2]);
+                    }
 
                     const offset = vertexCursor * 3;
                     flatPosition[offset + 0] = v0.x; flatPosition[offset + 1] = v0.y; flatPosition[offset + 2] = v0.z;
@@ -2028,7 +2370,7 @@ export class Lib3mfEngine {
                 lib3mfVersion,
                 specifications,
                 primarySpecification,
-                geometry // <--- New field
+                geometry
             };
 
             return output;

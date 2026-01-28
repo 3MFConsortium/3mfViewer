@@ -1,4 +1,9 @@
 {
+  "0.27.0": [
+    "Added beam lattice extension support with instanced mesh rendering for performance",
+    "Pure beam lattice 3MF files (with no triangle mesh) are now supported",
+    "Beam lattice meshes show proper names in scene tree instead of whitespace names"
+  ],
   "0.26.0": [
     "Switched to @3mfconsortium/lib3mf from the official 3MF Consortium npm organization"
   ],

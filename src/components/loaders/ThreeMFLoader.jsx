@@ -445,12 +445,8 @@ export function ThreeMFLoaderProvider({ children }) {
 
 
       // --- Consuming Flat Geometry from Worker ---
-      if (parsed.geometry) {
+      if (parsed.geometry && parsed.geometry.vertexCount > 0) {
         const { positions, colors, uvs, resourceIds, groups, vertexCount } = parsed.geometry;
-
-        if (vertexCount === 0) {
-          throw new Error("No geometry in 3MF file.");
-        }
 
         const geometry = new THREE.BufferGeometry();
         geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
@@ -536,10 +532,10 @@ export function ThreeMFLoaderProvider({ children }) {
         // The previous code put it in a group.
 
         group.add(mesh);
+      }
 
-      } else {
-        // Fallback if no geometry returned (error case?)
-        console.error("No geometry returned from worker.");
+      if (!parsed.geometry || parsed.geometry.vertexCount === 0) {
+        throw new Error("No geometry in 3MF file.");
       }
 
       const fallbackBounds = (() => {
