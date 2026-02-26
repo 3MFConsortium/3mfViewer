@@ -365,6 +365,12 @@ describe('Lib3mfEngine', () => {
                 triangleCount: null,
                 hasSlices: false,
                 manifoldOriented: undefined,
+                sliceStackId: null,
+                sliceStackUuid: null,
+                sliceStackHasUUID: false,
+                sliceCount: null,
+                sliceBottomZ: null,
+                slicesMeshResolution: null,
                 uuid: null,
                 hasUUID: false,
             })
@@ -382,7 +388,7 @@ describe('Lib3mfEngine', () => {
             expect(summary.vertexCount).toBe(100)
             expect(summary.triangleCount).toBe(200)
             expect(summary.hasSlices).toBe(true)
-            expect(summary.manifoldOriented).toBe(true)
+            expect(summary.manifoldOriented).toBeUndefined()
             expect(summary.uuid).toBe('mesh-uuid')
         })
     })

@@ -1,7 +1,7 @@
 {
   "name": "threemfviewer",
   "private": true,
-  "version": "0.28.0",
+  "version": "0.29.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -15,13 +15,13 @@
     "test:ui": "vitest --ui"
   },
   "dependencies": {
+    "@3mfconsortium/lib3mf": "^2.5.0-fix.2",
     "@react-three/drei": "^10.7.7",
     "@react-three/fiber": "^9.4.2",
     "@tailwindcss/vite": "^4.1.18",
-    "@3mfconsortium/lib3mf": "2.4.1",
+    "lucide-react": "^0.542.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "lucide-react": "^0.542.0",
     "tailwindcss": "^4.1.18",
     "three": "^0.182.0"
   },
