@@ -62,6 +62,9 @@ export function ViewerLayout({
   helpCardOpen,
   setHelpCardOpen,
   sampleModels,
+  renderingRoadmap,
+  upcomingCards,
+  getStatusMeta,
   sampleLoading,
   sampleError,
   handleLoadSample,
@@ -173,6 +176,9 @@ export function ViewerLayout({
             loadStatus={loadStatus}
             onBrowseClick={handleBrowseClick}
             sampleModels={sampleModels}
+            renderingRoadmap={renderingRoadmap}
+            upcomingCards={upcomingCards}
+            getStatusMeta={getStatusMeta}
             sampleLoading={sampleLoading}
             sampleError={sampleError}
             onLoadSample={handleLoadSample}

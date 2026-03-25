@@ -13,7 +13,7 @@ import { useThreeMFLoader } from "../components/loaders/ThreeMFLoaderContext.js"
 import { useViewerStore, DEFAULT_PREFS_LIGHT, DEFAULT_PREFS_DARK } from "../stores/viewerStore.js";
 import { useTheme } from "../contexts/themeStore.js";
 import { parseEmbedConfig, decodeBase64ToArrayBuffer } from "./embedConfig.js";
-import { sampleModels } from "./sampleData.js";
+import { sampleModels, renderingRoadmap, upcomingCards } from "./sampleData.js";
 import { useSceneLoading } from "../hooks/viewer/useSceneLoading.js";
 import { useSceneTreeItems } from "../hooks/viewer/useSceneTreeItems.js";
 import { useSliceView } from "../hooks/viewer/useSliceView.js";
@@ -29,6 +29,7 @@ import { ViewerLayout } from "./ViewerLayout.jsx";
 import { getSceneBounds, getSliceMax, formatElapsed } from "./sceneMeta.js";
 import { useViewerControls } from "../hooks/viewer/useViewerControls.js";
 import { useCameraControls } from "../hooks/viewer/useCameraControls.js";
+import { getStatusMeta } from "./statusMeta.js";
 
 function ViewerApp() {
   const { load3mf, ensureLib3mf } = useThreeMFLoader();
@@ -150,6 +151,17 @@ function ViewerApp() {
   const sliceMax = useMemo(() => getSliceMax(sceneData), [sceneData]);
 
   useSliceView(sceneObject, prefs.sliceIndex, sliceMax);
+
+  useEffect(() => {
+    if (loadStatus !== "ready") return;
+    if (sliceMax >= 0 && prefs.sliceIndex < 0) {
+      setPrefs((current) => ({ ...current, sliceIndex: 0 }));
+      return;
+    }
+    if (sliceMax < 0 && prefs.sliceIndex >= 0) {
+      setPrefs((current) => ({ ...current, sliceIndex: -1 }));
+    }
+  }, [loadStatus, prefs.sliceIndex, setPrefs, sliceMax]);
 
   // ---------- refs ----------
   const controlsRef = useRef(null);
@@ -336,6 +348,26 @@ function ViewerApp() {
 
   const appVersion = typeof __APP_VERSION__ === "string" ? __APP_VERSION__ : "dev";
   const currentNotes = Array.isArray(releaseNotes?.[appVersion]) ? releaseNotes[appVersion] : null;
+  const metadataWithBounds = useMemo(() => {
+    if (!sceneData?.metadata) return sceneData?.metadata;
+    if (!sceneBounds) return sceneData.metadata;
+    return {
+      ...sceneData.metadata,
+      bounds: {
+        min: {
+          x: sceneBounds.min.x,
+          y: sceneBounds.min.y,
+          z: sceneBounds.min.z,
+        },
+        size: {
+          x: sceneBounds.size.x,
+          y: sceneBounds.size.y,
+          z: sceneBounds.size.z,
+        },
+        maxExtent: sceneBounds.maxExtent,
+      },
+    };
+  }, [sceneBounds, sceneData]);
 
   return (
     <ViewerLayout
@@ -371,7 +403,7 @@ function ViewerApp() {
       handleLoadFile={handleLoadFile}
       loadedName={loadedName}
       loadError={loadError}
-      sceneMetadata={sceneData?.metadata}
+      sceneMetadata={metadataWithBounds}
       setSelectedNode={setSelectedNode}
       selectedNodeId={selectedNodeId}
       selectedNodeInfo={selectedNodeInfo}
@@ -391,6 +423,9 @@ function ViewerApp() {
       helpCardOpen={helpCardOpen}
       setHelpCardOpen={setHelpCardOpen}
       sampleModels={sampleModels}
+      renderingRoadmap={renderingRoadmap}
+      upcomingCards={upcomingCards}
+      getStatusMeta={getStatusMeta}
       sampleLoading={sampleLoading}
       sampleError={sampleError}
       handleLoadSample={handleLoadSample}

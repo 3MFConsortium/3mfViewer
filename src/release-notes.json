@@ -1,4 +1,9 @@
 {
+  "0.30.0": [
+    "Restored and redesigned the landing page with richer sample, roadmap, and workflow context",
+    "Fixed per-item visibility toggles, surfaced model bounds, and refined default mesh shading with subtle feature lines",
+    "Improved slice sample coverage with official 3MF Consortium references and added regression tests for slice-stack loading"
+  ],
   "0.29.0": [
     "Updated @3mfconsortium/lib3mf to ^2.5.0-fix.2",
     "Aligned viewer parsing with latest lib3mf fixes and behavior"

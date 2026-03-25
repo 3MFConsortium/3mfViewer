@@ -300,9 +300,14 @@ export function ThreeMFLoaderProvider({ children }) {
         paletteIndex += 1;
 
         const fallback = new THREE.Color(fallbackColor);
+        const hasResolvedPerTriangleColor =
+          Number(resource?.materialColorStats?.trianglesWithColor ?? 0) > 0;
+        const resourceBaseColor = resource.baseColor && typeof resource.baseColor === "object"
+          ? resource.baseColor
+          : null;
         const baseColor =
-          resource.baseColor && typeof resource.baseColor === "object"
-            ? resource.baseColor
+          hasResolvedPerTriangleColor && resourceBaseColor
+            ? resourceBaseColor
             : { r: fallback.r, g: fallback.g, b: fallback.b, a: 1 };
 
         const baseName = resource.displayName || `Mesh ${resource.resourceId ?? meshResources.size + 1}`;
@@ -324,192 +329,173 @@ export function ThreeMFLoaderProvider({ children }) {
         componentResources.set(component.resourceId, component);
       });
 
-      const buildSliceGroup = (sliceStacks = [], fallbackBounds = null) => {
-        if (!Array.isArray(sliceStacks) || !sliceStacks.length) return null;
-        const root = new THREE.Group();
-        root.name = "Slice Stacks";
-
-        sliceStacks.forEach((stack, stackIndex) => {
-          const stackGroup = new THREE.Group();
-          const stackId = stack?.resourceId ?? stackIndex + 1;
-          stackGroup.name = `Slice Stack ${stackId}`;
-
-          const slices = Array.isArray(stack?.slices) ? stack.slices : [];
-          if (!slices.length) {
-            root.add(stackGroup);
-            return;
-          }
-
-          const addLoop = (points, z) => {
-            if (points.length < 2) return null;
-            const positions = new Float32Array(points.length * 2 * 3);
-            let offset = 0;
-            for (let i = 0; i < points.length; i += 1) {
-              const a = points[i];
-              const b = points[(i + 1) % points.length];
-              positions[offset++] = a.x;
-              positions[offset++] = a.y;
-              positions[offset++] = z;
-              positions[offset++] = b.x;
-              positions[offset++] = b.y;
-              positions[offset++] = z;
-            }
-            return positions;
-          };
-
-          const fallbackVertices = (() => {
-            if (!fallbackBounds) return [];
-            const min = fallbackBounds.min;
-            const max = fallbackBounds.max;
-            if (!min || !max) return [];
-            return [
-              { x: min.x, y: min.y },
-              { x: max.x, y: min.y },
-              { x: max.x, y: max.y },
-              { x: min.x, y: max.y },
-            ];
-          })();
-
-          const material = new THREE.LineBasicMaterial({
-            color: 0x0f172a,
-            transparent: true,
-            opacity: 0.55,
-            depthWrite: false,
-            depthTest: false,
-          });
-
-          slices.forEach((slice) => {
-            const vertices = Array.isArray(slice?.vertices) ? slice.vertices : [];
-            const verticesOrFallback = vertices.length >= 2 ? vertices : fallbackVertices;
-            if (verticesOrFallback.length < 2) return;
-            const z = Number.isFinite(Number(slice?.zTop)) ? Number(slice.zTop) : 0;
-            const polygonIndexCounts = Array.isArray(slice?.polygonIndexCounts)
-              ? slice.polygonIndexCounts
-              : [];
-
-            let positions = null;
-            if (polygonIndexCounts.length) {
-              const countValue = polygonIndexCounts[0];
-              const count = Number.isFinite(Number(countValue)) ? Number(countValue) : 0;
-              if (count >= 2) {
-                const maxCount = count === verticesOrFallback.length + 1 ? verticesOrFallback.length : count;
-                positions = addLoop(
-                  verticesOrFallback.slice(0, Math.min(verticesOrFallback.length, maxCount)),
-                  z
-                );
-              }
-            } else {
-              positions = addLoop(verticesOrFallback, z);
-            }
-
-            if (!positions) return;
-
-            const geometry = new THREE.BufferGeometry();
-            geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-            const lines = new THREE.LineSegments(geometry, material);
-            lines.userData.isSliceLine = true;
-            lines.userData.sliceIndex = slice.index ?? null;
-            lines.renderOrder = 2;
-            lines.visible = true;
-            stackGroup.add(lines);
-          });
-
-          root.add(stackGroup);
-        });
-
-        return root.children.length ? root : null;
-      };
-
-
       // --- Consuming Flat Geometry from Worker ---
       if (parsed.geometry) {
         const { positions, colors, uvs, resourceIds, groups, vertexCount, beamLines } = parsed.geometry;
 
         if (vertexCount > 0) {
-          const geometry = new THREE.BufferGeometry();
-          geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-          geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-          geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+          const matCache = new Map(); // textureId/mode -> material
 
-          // Virtual mesh attributes for per-resource visibility toggling
-          if (resourceIds) {
-            geometry.setAttribute("virtualResourceId", new THREE.BufferAttribute(resourceIds, 1));
-            // Initialize visibility to 1 (visible) for all vertices
-            const visibility = new Float32Array(vertexCount);
-            visibility.fill(1.0);
-            geometry.setAttribute("virtualVisibility", new THREE.BufferAttribute(visibility, 1));
-            // Track which vertices use textures (for visibility shader logic)
-            const useTexture = new Float32Array(vertexCount);
-            const hasTexture = new Float32Array(vertexCount);
-            // Will be populated based on groups
-            geometry.setAttribute("virtualUseTexture", new THREE.BufferAttribute(useTexture, 1));
-            geometry.setAttribute("virtualHasTexture", new THREE.BufferAttribute(hasTexture, 1));
-          }
-
-          // Materials
-          // We need to map textureId -> material index per group.
-          // groups: { start, count, textureId }.
-
-          const matCache = new Map(); // textureId (or null) -> material
-
-          const getMaterial = (textureId) => {
-            const key = textureId ?? "none";
+          const getMaterial = (textureId, options = {}) => {
+            const vertexColorsEnabled = !!options.vertexColors;
+            const solidColor = options.color || "#ffffff";
+            const key = `${textureId ?? "none"}::${vertexColorsEnabled ? "vc" : `solid:${solidColor}`}`;
             if (matCache.has(key)) return matCache.get(key);
 
             const tex = textureId ? textureMap.get(textureId) : null;
             const hasTex = !!tex;
 
             const material = new THREE.MeshPhongMaterial({
-              color: hasTex ? "#ffffff" : "#ffffff",
+              color: hasTex ? "#ffffff" : solidColor,
               map: tex || null,
-              vertexColors: !hasTex, // Use vertex colors if no texture
+              vertexColors: hasTex ? false : vertexColorsEnabled,
               specular: "#111111",
               shininess: 10,
-              flatShading: true
+              flatShading: true,
             });
 
             matCache.set(key, material);
             return material;
           };
 
-          const distinctMaterials = [];
-          const materialIndexMap = new Map(); // key -> index in distinctMaterials array
+          if (resourceIds?.length) {
+            const sourceGroups = groups.length
+              ? groups
+              : [{ start: 0, count: vertexCount, textureId: null }];
+            const buckets = new Map();
 
-          groups.forEach(g => {
-            const key = g.textureId ?? "none";
-            if (!materialIndexMap.has(key)) {
-              const mat = getMaterial(g.textureId);
-              materialIndexMap.set(key, distinctMaterials.length);
-              distinctMaterials.push(mat);
+            const ensureBucket = (resourceId, textureId) => {
+              const key = `${resourceId ?? "none"}::${textureId ?? "none"}`;
+              if (!buckets.has(key)) {
+                buckets.set(key, {
+                  resourceId,
+                  textureId,
+                  positions: [],
+                  colors: [],
+                  uvs: [],
+                });
+              }
+              return buckets.get(key);
+            };
+
+            sourceGroups.forEach((entry) => {
+              const start = Math.max(0, Number(entry.start) || 0);
+              const count = Math.max(0, Number(entry.count) || 0);
+              const end = Math.min(vertexCount, start + count);
+
+              for (let vertex = start; vertex + 2 < end; vertex += 3) {
+                const resourceId = Number(resourceIds[vertex]);
+                const bucket = ensureBucket(resourceId, entry.textureId ?? null);
+
+                for (let local = 0; local < 3; local += 1) {
+                  const index = vertex + local;
+                  const posBase = index * 3;
+                  const uvBase = index * 2;
+                  bucket.positions.push(
+                    positions[posBase + 0],
+                    positions[posBase + 1],
+                    positions[posBase + 2]
+                  );
+                  bucket.colors.push(
+                    colors[posBase + 0],
+                    colors[posBase + 1],
+                    colors[posBase + 2]
+                  );
+                  bucket.uvs.push(uvs[uvBase + 0], uvs[uvBase + 1]);
+                }
+              }
+            });
+
+            buckets.forEach((bucket) => {
+              if (!bucket.positions.length) return;
+              const geometry = new THREE.BufferGeometry();
+              geometry.setAttribute(
+                "position",
+                new THREE.BufferAttribute(new Float32Array(bucket.positions), 3)
+              );
+              geometry.setAttribute(
+                "color",
+                new THREE.BufferAttribute(new Float32Array(bucket.colors), 3)
+              );
+              geometry.setAttribute(
+                "uv",
+                new THREE.BufferAttribute(new Float32Array(bucket.uvs), 2)
+              );
+
+              const resource = meshResources.get(bucket.resourceId);
+              const hasResolvedPerTriangleColor =
+                Number(resource?.materialColorStats?.trianglesWithColor ?? 0) > 0;
+              const solidColor = resource?.baseColor
+                ? new THREE.Color(
+                    resource.baseColor.r ?? 1,
+                    resource.baseColor.g ?? 1,
+                    resource.baseColor.b ?? 1
+                  ).getStyle()
+                : "#ffffff";
+
+              if (!bucket.textureId && !hasResolvedPerTriangleColor) {
+                const fallbackColor = new THREE.Color(solidColor);
+                const colorAttr = geometry.getAttribute("color");
+                for (let i = 0; i < colorAttr.count; i += 1) {
+                  colorAttr.setXYZ(i, fallbackColor.r, fallbackColor.g, fallbackColor.b);
+                }
+                colorAttr.needsUpdate = true;
+              }
+
+              const mesh = new THREE.Mesh(
+                geometry,
+                getMaterial(bucket.textureId, {
+                  vertexColors: !bucket.textureId && hasResolvedPerTriangleColor,
+                  color: solidColor,
+                })
+              );
+              mesh.castShadow = true;
+              mesh.receiveShadow = true;
+              mesh.name =
+                resource?.displayName ||
+                `Mesh ${bucket.resourceId ?? group.children.length + 1}`;
+              mesh.userData.resourceId = bucket.resourceId;
+              mesh.userData.uniqueResourceId = resource?.uniqueResourceId ?? null;
+              mesh.userData.uuid = resource?.uuid ?? null;
+              mesh.userData.hasUUID = resource?.hasUUID ?? false;
+              mesh.userData.vertexCount = resource?.vertexCount ?? bucket.positions.length / 3;
+              mesh.userData.triangleCount = resource?.triangleCount ?? bucket.positions.length / 9;
+              mesh.userData.materialColorStats = resource?.materialColorStats ?? null;
+              mesh.userData.objectLevelProperty = resource?.objectLevelProperty ?? null;
+              mesh.userData.meshDiagnostics = resource?.meshSummary ?? null;
+              group.add(mesh);
+            });
+          } else {
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+            geometry.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+
+            const distinctMaterials = [];
+            const materialIndexMap = new Map(); // key -> index in distinctMaterials array
+
+            groups.forEach((entry) => {
+              const key = entry.textureId ?? "none";
+              if (!materialIndexMap.has(key)) {
+                const mat = getMaterial(entry.textureId);
+                materialIndexMap.set(key, distinctMaterials.length);
+                distinctMaterials.push(mat);
+              }
+              const matIndex = materialIndexMap.get(key);
+              geometry.addGroup(entry.start, entry.count, matIndex);
+            });
+
+            if (groups.length === 0) {
+              distinctMaterials.push(getMaterial(null));
+              geometry.addGroup(0, vertexCount, 0);
             }
-            const matIndex = materialIndexMap.get(key);
-            geometry.addGroup(g.start, g.count, matIndex);
-          });
 
-          // If no groups (weird?), add one default
-          if (groups.length === 0) {
-            const mat = getMaterial(null);
-            distinctMaterials.push(mat);
-            geometry.addGroup(0, vertexCount, 0);
+            const mesh = new THREE.Mesh(geometry, distinctMaterials);
+            mesh.castShadow = true;
+            mesh.receiveShadow = true;
+            mesh.name = fileName?.replace(/\\.[^/.]+$/, "") || "3MF Model";
+            group.add(mesh);
           }
-
-          const mesh = new THREE.Mesh(geometry, distinctMaterials);
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
-          mesh.name = fileName?.replace(/\\.[^/.]+$/, "") || "3MF Model";
-          // Mark as virtual mesh for per-resource visibility toggling
-          if (resourceIds) {
-            mesh.userData.virtualMesh = true;
-          }
-          // Orient for Y-up if needed (3MF is typically Z-up, but ThreeMFLoader usually rotates it?)
-          // Standard ThreeMFLoader in three.js:
-          // "3MF documents use a right-handed coordinate system... Z-axis is positive up."
-          // THREE is Y-up.
-          // The previous code didn't seem to apply a global rotation, assuming the viewer camera handles it OR usage of a container.
-          // I will check if I need to rotate it.
-          // The previous code put it in a group.
-
-          group.add(mesh);
         }
 
         if (beamLines?.positions?.length) {
@@ -650,20 +636,41 @@ export function ThreeMFLoaderProvider({ children }) {
         mesh.geometry.computeBoundingBox();
         return mesh.geometry.boundingBox || null;
       })();
-      const sliceGroup = buildSliceGroup(parsed.sliceStacks, fallbackBounds);
-      if (sliceGroup) {
-        group.add(sliceGroup);
-      }
 
       // Center the model
       const boundingBox = new THREE.Box3().setFromObject(group);
+      let modelCenter = null;
       if (!boundingBox.isEmpty()) {
         const center = boundingBox.getCenter(new THREE.Vector3());
+        modelCenter = center.clone();
         group.children.forEach((child) => {
           child.position.sub(center);
           child.updateMatrixWorld(true);
         });
         group.updateMatrixWorld(true);
+      }
+
+      if (Array.isArray(parsed.sliceStacks) && parsed.sliceStacks.length) {
+        group.userData.slicePreviewSource = {
+          sliceStacks: parsed.sliceStacks,
+          fallbackBounds: fallbackBounds
+            ? {
+                min: {
+                  x: fallbackBounds.min.x,
+                  y: fallbackBounds.min.y,
+                  z: fallbackBounds.min.z,
+                },
+                max: {
+                  x: fallbackBounds.max.x,
+                  y: fallbackBounds.max.y,
+                  z: fallbackBounds.max.z,
+                },
+              }
+            : null,
+          center: modelCenter
+            ? { x: modelCenter.x, y: modelCenter.y, z: modelCenter.z }
+            : { x: 0, y: 0, z: 0 },
+        };
       }
 
       console.info("[lib3mf] loaded", {

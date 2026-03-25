@@ -720,43 +720,29 @@ export class Lib3mfEngine {
                         const slice = stack.GetSlice?.(i);
                         if (!slice) continue;
                         try {
-                        const zTopValue = slice.GetZTop?.();
-                        const zTop = Number.isFinite(Number(zTopValue)) ? Number(zTopValue) : null;
-                        const vertexCountValue = slice.GetVertexCount?.();
-                        const vertexCount = Number.isFinite(Number(vertexCountValue)) ? Number(vertexCountValue) : 0;
-                        const polygonCountValue = slice.GetPolygonCount?.();
-                        const polygonCount = Number.isFinite(Number(polygonCountValue)) ? Number(polygonCountValue) : 0;
-                            const vertices = [];
-                            for (let v = 0; v < vertexCount; v += 1) {
-                                const vertex = slice.GetVertex?.(v);
-                                if (!vertex) continue;
-                                try {
-                                    const x = vertex.get_Coordinates0?.();
-                                    const y = vertex.get_Coordinates1?.();
-                                    vertices.push({
-                                        x: Number.isFinite(x) ? x : 0,
-                                        y: Number.isFinite(y) ? y : 0,
-                                    });
-                                } finally {
-                                    safeDelete(vertex);
-                                }
+                            const zTopValue = slice.GetZTop?.();
+                            const zTop = Number.isFinite(Number(zTopValue)) ? Number(zTopValue) : null;
+                            const vertexCountValue = slice.GetVertexCount?.();
+                            const vertexCount = Number.isFinite(Number(vertexCountValue)) ? Number(vertexCountValue) : 0;
+                            const polygonCountValue = slice.GetPolygonCount?.();
+                            const polygonCount = Number.isFinite(Number(polygonCountValue)) ? Number(polygonCountValue) : 0;
+                            for (let p = 0; p < polygonCount; p += 1) {
+                                const countValue = slice.GetPolygonIndexCount?.(p);
+                                void countValue;
                             }
-
-                        const polygonIndexCounts = [];
-                        for (let p = 0; p < polygonCount; p += 1) {
-                            const countValue = slice.GetPolygonIndexCount?.(p);
-                            const count = Number.isFinite(Number(countValue)) ? Number(countValue) : null;
-                            polygonIndexCounts.push(count);
-                        }
 
                             slices.push({
                                 index: i,
                                 zTop,
-                            vertexCount,
-                            polygonCount,
-                            vertices,
-                            polygonIndexCounts,
-                        });
+                                vertexCount,
+                                polygonCount,
+                                vertices: [],
+                                polygonIndexCounts: Array.from({ length: polygonCount }, (_, p) => {
+                                    const countValue = slice.GetPolygonIndexCount?.(p);
+                                    return Number.isFinite(Number(countValue)) ? Number(countValue) : null;
+                                }),
+                                polygons: [],
+                            });
                         } finally {
                             safeDelete(slice);
                         }
@@ -781,6 +767,36 @@ export class Lib3mfEngine {
             safeDelete(iterator);
         }
         return stacks;
+    }
+
+    resolveSliceStackReference(stack, stackMap, visited = new Set()) {
+        if (!stack) return null;
+        const keys = [stack.resourceId, stack.uniqueResourceId]
+            .filter((value) => value !== undefined && value !== null)
+            .map((value) => String(value));
+        const visitKey = keys[0] || `${stack.uuid || "stack"}`;
+        if (visited.has(visitKey)) return stack;
+        visited.add(visitKey);
+
+        const hasLocalSlices = Array.isArray(stack.slices) && stack.slices.length > 0;
+        if (hasLocalSlices) return stack;
+
+        const references = Array.isArray(stack.references) ? stack.references : [];
+        for (const reference of references) {
+            const refKeys = [reference?.resourceId, reference?.uniqueResourceId]
+                .filter((value) => value !== undefined && value !== null)
+                .map((value) => String(value));
+            const target = refKeys
+                .map((key) => stackMap.get(key))
+                .find(Boolean);
+            if (!target) continue;
+            const resolved = this.resolveSliceStackReference(target, stackMap, visited);
+            if (resolved && Array.isArray(resolved.slices) && resolved.slices.length > 0) {
+                return resolved;
+            }
+        }
+
+        return stack;
     }
 
     buildMaterialLookupMaps(baseGroups, colorGroups) {
@@ -1938,6 +1954,20 @@ export class Lib3mfEngine {
             const texture2Ds = this.readTexture2DEntries(model);
             const texture2DGroups = this.readTexture2DGroupEntries(model);
             const sliceStacks = this.readSliceStackEntries(model);
+            const sliceStackMap = new Map();
+            sliceStacks.forEach((stack) => {
+                [stack?.resourceId, stack?.uniqueResourceId]
+                    .filter((value) => value !== undefined && value !== null)
+                    .forEach((value) => sliceStackMap.set(String(value), stack));
+            });
+            const resolvedSliceStacks = new Map();
+            sliceStacks.forEach((stack) => {
+                const resolved = this.resolveSliceStackReference(stack, sliceStackMap);
+                if (!resolved) return;
+                [stack?.resourceId, stack?.uniqueResourceId]
+                    .filter((value) => value !== undefined && value !== null)
+                    .forEach((value) => resolvedSliceStacks.set(String(value), resolved));
+            });
             const hasTextures = texture2DGroups.length > 0 && texture2Ds.length > 0;
 
             const lookupMaps = this.buildMaterialLookupMaps(baseMaterialGroups, colorGroups);
@@ -1950,6 +1980,22 @@ export class Lib3mfEngine {
                 resource.vertexColors = colorData.vertexColors;
                 resource.materialColorStats = colorData.stats;
                 resource.usesVertexColors = colorData.stats.trianglesWithColor > 0;
+
+                const meshSummary = resource.meshSummary;
+                if (meshSummary?.hasSlices && meshSummary.sliceStackId !== null && meshSummary.sliceStackId !== undefined) {
+                    const resolved = resolvedSliceStacks.get(String(meshSummary.sliceStackId));
+                    if (resolved) {
+                        resource.meshSummary = {
+                            ...meshSummary,
+                            resolvedSliceStackId: resolved.resourceId ?? meshSummary.sliceStackId,
+                            resolvedSliceStackUniqueResourceId: resolved.uniqueResourceId ?? null,
+                            resolvedSliceStackUuid: resolved.uuid ?? null,
+                            resolvedSliceStackHasUUID: resolved.hasUUID ?? false,
+                            resolvedSliceCount: resolved.sliceCount ?? meshSummary.sliceCount,
+                            resolvedSliceBottomZ: resolved.bottomZ ?? meshSummary.sliceBottomZ,
+                        };
+                    }
+                }
 
                 if (hasTextures) {
                     const textureData = this.mapTriangleTextureCoordinates(resource, textureLookup);

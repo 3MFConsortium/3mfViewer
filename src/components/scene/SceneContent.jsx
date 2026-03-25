@@ -5,6 +5,7 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
   const wireframe = !!renderOptions?.wireframe;
   const showEdges = !!renderOptions?.edges;
   const edgeColor = renderOptions?.edgeColor || "#111827";
+  const subtleEdgeColor = renderOptions?.subtleEdgeColor || "#64748b";
   const hiddenSet = useMemo(() => new Set(hiddenMeshIds), [hiddenMeshIds]);
 
   useEffect(() => {
@@ -57,25 +58,9 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
     );
     object.traverse((child) => {
       if (!child.isMesh) return;
-      if (child.userData?.isBeamLatticeLines) return;
-      if (child.userData?.isSliceLine) return; // Skip slice lines
+      if (child.userData?.isSliceLine) return;
 
-      if (child.userData?.virtualMesh) {
-        // For virtual meshes (flattened geometry), check if ANY resource in the mesh is hidden
-        const idAttr = child.geometry?.getAttribute("virtualResourceId");
-        if (idAttr) {
-          // Collect unique resource IDs in this mesh
-          const resourceIdsInMesh = new Set();
-          for (let i = 0; i < idAttr.count; i += 1) {
-            resourceIdsInMesh.add(idAttr.getX(i));
-          }
-          // Hide mesh if ALL its resources are hidden, show if any are visible
-          const anyHidden = [...resourceIdsInMesh].some(id => hiddenIds.has(id));
-          // For single-resource meshes, this works perfectly
-          // For multi-resource meshes, hide if any resource is hidden (best we can do without custom shader)
-          child.visible = !anyHidden;
-        }
-      } else if (child.userData?.isBeamLatticeLines) {
+      if (child.userData?.isBeamLatticeLines) {
         const idAttr = child.geometry?.getAttribute("virtualResourceId");
         if (idAttr) {
           const resourceIdsInMesh = new Set();
@@ -84,11 +69,14 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
           }
           const anyHidden = [...resourceIdsInMesh].some(id => hiddenIds.has(id));
           child.visible = !anyHidden;
+        } else {
+          child.visible = true;
         }
       } else if (child.userData?.isBeamLattice) {
-        // Beam lattice instanced meshes have a single resourceId
         const resourceId = child.userData.resourceId;
         child.visible = !hiddenIds.has(resourceId);
+      } else if (child.userData?.resourceId !== undefined && child.userData?.resourceId !== null) {
+        child.visible = !hiddenIds.has(Number(child.userData.resourceId));
       } else {
         child.visible = !hiddenSet.has(child.uuid);
       }
@@ -118,22 +106,33 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
       });
 
       const edgesHelper = child.userData.edgesHelper;
-      if (showEdges) {
+      const shouldShowSubtleEdges = !wireframe;
+      const desiredOpacity = showEdges ? 0.55 : shouldShowSubtleEdges ? 0.18 : 0;
+      const desiredColor = showEdges ? edgeColor : subtleEdgeColor;
+
+      if (desiredOpacity > 0) {
         if (!edgesHelper) {
           const geometry = new THREE.EdgesGeometry(child.geometry, 30);
           const material = new THREE.LineBasicMaterial({
-            color: edgeColor,
+            color: desiredColor,
             transparent: true,
-            opacity: 0.55,
+            opacity: desiredOpacity,
           });
           const helper = new THREE.LineSegments(geometry, material);
           helper.renderOrder = 1;
           child.add(helper);
           child.userData.edgesHelper = helper;
-          child.userData.edgesColor = edgeColor;
-        } else if (child.userData.edgesColor !== edgeColor) {
-          edgesHelper.material.color.set(edgeColor);
-          child.userData.edgesColor = edgeColor;
+          child.userData.edgesColor = desiredColor;
+          child.userData.edgesOpacity = desiredOpacity;
+        } else {
+          if (child.userData.edgesColor !== desiredColor) {
+            edgesHelper.material.color.set(desiredColor);
+            child.userData.edgesColor = desiredColor;
+          }
+          if (child.userData.edgesOpacity !== desiredOpacity) {
+            edgesHelper.material.opacity = desiredOpacity;
+            child.userData.edgesOpacity = desiredOpacity;
+          }
         }
       } else if (edgesHelper) {
         child.remove(edgesHelper);
@@ -141,9 +140,10 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
         edgesHelper.material?.dispose();
         delete child.userData.edgesHelper;
         delete child.userData.edgesColor;
+        delete child.userData.edgesOpacity;
       }
     });
-  }, [object, wireframe, showEdges, edgeColor, hiddenSet]);
+  }, [object, wireframe, showEdges, edgeColor, subtleEdgeColor, hiddenSet]);
 
   return (
     <group ref={contentRef}>

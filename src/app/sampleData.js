@@ -1,10 +1,10 @@
 export const sampleModels = [
   {
-    name: "Cube",
+    name: "Component Assembly",
     fileName: "cube.3mf",
     urls: ["/data/cube.3mf"],
     badge: "Components",
-    description: "Component assembly with transforms and shared meshes.",
+    description: "Three-part assembly with shared mesh resources and component transforms.",
   },
   {
     name: "Helix",
@@ -17,15 +17,15 @@ export const sampleModels = [
     name: "Parts for Bounding Box",
     fileName: "PartsForBoundingBox.3mf",
     urls: ["/data/PartsForBoundingBox.3mf"],
-    badge: "Colour group",
-    description: "Two-part assembly coloured via a 3MF colour group (orange + grey).",
+    badge: "Bounds + colours",
+    description: "Two-part assembly useful for checking per-part visibility and overall model extents.",
   },
   {
-    name: "Pyramid with Properties",
+    name: "Property Cube",
     fileName: "PyramidWithProperties.3mf",
     urls: ["/data/PyramidWithProperties.3mf"],
     badge: "Material group",
-    description: "Demonstrates base material groups assigning different faces per material.",
+    description: "Cube-shaped sample demonstrating base material properties assigned through a material group.",
   },
   {
     name: "Colour Cube",
@@ -35,11 +35,32 @@ export const sampleModels = [
     description: "Single mesh with a smooth vertex-colour gradient across the cube.",
   },
   {
-    name: "Sliced Cube",
-    fileName: "P_SXX_0101_03.3mf",
-    urls: ["/data/slice/P_SXX_0101_03.3mf"],
+    name: "Sliced Cube Gears",
+    fileName: "cube_gears_sliced.3mf",
+    urls: ["/data/slice/cube_gears_sliced.3mf"],
     badge: "Slice extension",
-    description: "Cube with slice stack data for layer-by-layer visualization.",
+    description: "Official multi-part slice-stack sample with denser geometry for Z-plane inspection.",
+  },
+  {
+    name: "Sliced Torus",
+    fileName: "torus_sliced.3mf",
+    urls: ["/data/slice/torus_sliced.3mf"],
+    badge: "Slice extension",
+    description: "Reference torus slice-stack sample useful for checking contours and filled cross-sections.",
+  },
+  {
+    name: "Sliced Sphere",
+    fileName: "sphere_sliced.3mf",
+    urls: ["/data/slice/sphere_sliced.3mf"],
+    badge: "Slice extension",
+    description: "Reference sphere slice-stack sample for simple layer-by-layer Z slicing.",
+  },
+  {
+    name: "Sliced Box",
+    fileName: "box_sliced.3mf",
+    urls: ["/data/slice/box_sliced.3mf"],
+    badge: "Slice extension",
+    description: "Simple official slice sample for validating slice-plane orientation and stack traversal.",
   },
 ];
 
@@ -54,7 +75,7 @@ export const renderingRoadmap = [
     ],
   },
   { label: "Slice extension", status: "now" },
-  { label: "Beam lattice extension", status: "soon" },
+  { label: "Beam lattice extension", status: "now" },
   { label: "Volumetric extension", status: "soon" },
 ];
 

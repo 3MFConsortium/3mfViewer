@@ -49,7 +49,7 @@ export const DEFAULT_PREFS = {
   syncWithTheme: true,
 };
 
-const PREFS_STORAGE_KEY = "3mfViewer:prefs";
+const PREFS_STORAGE_KEY = "3mfViewer:prefs:v2";
 
 const isEmbedMode = () => {
   if (typeof window === "undefined") return false;

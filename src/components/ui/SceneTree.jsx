@@ -387,6 +387,26 @@ export function SceneTree({
         if (typeof metadata.counts?.sliceStacks === "number") {
           rows.push({ label: "Slice stacks", value: metadata.counts.sliceStacks.toLocaleString(), numeric: true });
         }
+        if (metadata.bounds?.size) {
+          rows.push({
+            label: "Bounding box",
+            value: `${metadata.bounds.size.x.toFixed(3)} × ${metadata.bounds.size.y.toFixed(3)} × ${metadata.bounds.size.z.toFixed(3)}`,
+          });
+        }
+        if (metadata.bounds?.min) {
+          rows.push({
+            label: "Bounds min",
+            value: `${metadata.bounds.min.x.toFixed(3)}, ${metadata.bounds.min.y.toFixed(3)}, ${metadata.bounds.min.z.toFixed(3)}`,
+            mono: true,
+          });
+        }
+        if (Array.isArray(specifications) && specifications.length) {
+          const supportedCount = specifications.filter((entry) => entry?.supported).length;
+          rows.push({
+            label: "Specifications",
+            value: `${supportedCount}/${specifications.length} supported`,
+          });
+        }
         return rows;
       })()
     : [];
@@ -853,7 +873,7 @@ export function SceneTree({
               ) : null}
             </button>
             <button
-              className={`inline-flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition sm:h-9 sm:w-9 ${
+              className={`inline-flex h-10 items-center justify-center rounded-full px-3 shadow-sm transition sm:h-9 ${
                 !isReady
                   ? "cursor-not-allowed bg-surface text-text-muted"
                   : "bg-accent text-accent-foreground hover:bg-accent-hover"
@@ -877,11 +897,10 @@ export function SceneTree({
               title={isReady ? "Check specification URLs" : "Available after loading"}
               aria-label="Check specifications"
               onClick={() => {
-                setSpecInputValue("");
                 setSpecModalOpen(true);
               }}
             >
-              <span className="text-[0.7rem] font-semibold tracking-wide">SPEC</span>
+              <span className="text-[0.7rem] font-semibold tracking-wide">Spec</span>
             </button>
             {variant === "drawer" && (
               <button
@@ -1066,7 +1085,36 @@ export function SceneTree({
   const sliceStackDetails = useMemo(() => {
     const diag = selectedInfo?.meta?.meshDiagnostics;
     if (!diag?.hasSlices) return null;
-    const stackId = diag.sliceStackId ?? null;
+    const stackId = diag.resolvedSliceStackId ?? diag.sliceStackId ?? null;
+    const stackMap = new Map();
+    if (Array.isArray(sliceStacks)) {
+      sliceStacks.forEach((stack) => {
+        [stack?.resourceId, stack?.uniqueResourceId]
+          .filter((value) => value !== undefined && value !== null)
+          .forEach((value) => stackMap.set(String(value), stack));
+      });
+    }
+    const resolveStack = (stack, visited = new Set()) => {
+      if (!stack) return null;
+      const keys = [stack.resourceId, stack.uniqueResourceId]
+        .filter((value) => value !== undefined && value !== null)
+        .map((value) => String(value));
+      const visitKey = keys[0] || stack.uuid || "stack";
+      if (visited.has(visitKey)) return stack;
+      visited.add(visitKey);
+      if (Array.isArray(stack.slices) && stack.slices.length) return stack;
+      const refs = Array.isArray(stack.references) ? stack.references : [];
+      for (const ref of refs) {
+        const target = [ref?.resourceId, ref?.uniqueResourceId]
+          .filter((value) => value !== undefined && value !== null)
+          .map((value) => stackMap.get(String(value)))
+          .find(Boolean);
+        if (!target) continue;
+        const resolved = resolveStack(target, visited);
+        if (resolved && Array.isArray(resolved.slices) && resolved.slices.length) return resolved;
+      }
+      return stack;
+    };
     let matchedStack = null;
     if (Array.isArray(sliceStacks) && sliceStacks.length) {
       if (stackId !== null && stackId !== undefined) {
@@ -1083,6 +1131,7 @@ export function SceneTree({
         matchedStack = sliceStacks[0];
       }
     }
+    matchedStack = resolveStack(matchedStack);
     const slices = Array.isArray(matchedStack?.slices) ? matchedStack.slices : [];
     const zValues = slices
       .map((slice) => slice?.zTop)
@@ -1126,7 +1175,7 @@ export function SceneTree({
       open={specModalOpen}
       onClose={() => setSpecModalOpen(false)}
       title="Check 3MF Specifications"
-      subtitle="Enter one URL per line to verify support"
+      subtitle="Use detected specification URLs from the model or enter custom URLs"
       size="md"
       footer={
         <button
@@ -1138,6 +1187,44 @@ export function SceneTree({
         </button>
       }
     >
+      {specifications.length ? (
+        <div className="mb-4 rounded-2xl border border-border bg-surface-elevated/95 p-4 text-xs text-text-secondary">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="font-semibold text-text-primary">Detected in this model</div>
+              <div className="mt-1">These specification URLs were read directly from the loaded 3MF.</div>
+            </div>
+            <button
+              type="button"
+              className="rounded-full border border-border bg-surface px-3 py-1.5 text-[0.7rem] font-semibold uppercase tracking-[0.14em] text-text-primary transition hover:bg-surface-elevated"
+              onClick={() =>
+                setSpecInputValue(
+                  specifications
+                    .map((spec) => spec?.url)
+                    .filter(Boolean)
+                    .join("\n")
+                )
+              }
+            >
+              Use detected URLs
+            </button>
+          </div>
+          <ul className="mt-3 space-y-1">
+            {specifications.map((spec, index) => (
+              <li
+                key={`detected-spec-${spec.url || index}`}
+                className="rounded-xl border border-border-subtle bg-surface px-3 py-2 break-all"
+              >
+                {spec.url || `Specification ${index + 1}`}
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : (
+        <div className="mb-4 rounded-2xl border border-border bg-surface-elevated/95 p-4 text-xs text-text-secondary">
+          No specification URLs were declared in this model. Paste one or more URLs below to check support manually.
+        </div>
+      )}
       <textarea
         value={specInputValue}
         onChange={(event) => setSpecInputValue(event.target.value)}
