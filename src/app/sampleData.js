@@ -1,7 +1,7 @@
 export const sampleModels = [
   {
     name: "Component Assembly",
-    fileName: "cube.3mf",
+    fileName: "ComponentAssembly.3mf",
     urls: ["/data/cube.3mf"],
     badge: "Components",
     description: "Three-part assembly with shared mesh resources and component transforms.",
@@ -40,6 +40,20 @@ export const sampleModels = [
     urls: ["/data/slice/cube_gears_sliced.3mf"],
     badge: "Slice extension",
     description: "Official multi-part slice-stack sample with denser geometry for Z-plane inspection.",
+  },
+  {
+    name: "Brake Pedal",
+    fileName: "BrakePedal.3mf",
+    urls: ["/data/BrakePedal.3mf"],
+    badge: "Beam lattice",
+    description: "A production-style part combining a solid shell with a lightweight internal beam lattice.",
+  },
+  {
+    name: "Dense Octet Lattice",
+    fileName: "OctetLattice.3mf",
+    urls: ["/data/OctetLattice.3mf"],
+    badge: "Beam stress test",
+    description: "A high-density multi-object octet lattice for testing solid rendering performance.",
   },
   {
     name: "Sliced Torus",

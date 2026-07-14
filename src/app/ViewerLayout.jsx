@@ -8,6 +8,7 @@ import { ViewerScene } from "../components/viewer/ViewerScene.jsx";
 import { ViewerHome } from "../components/home/ViewerHome.jsx";
 import { ViewerModals } from "./ViewerModals.jsx";
 import { ViewerScenePanels } from "../components/viewer/ViewerScenePanels.jsx";
+import { ViewerDropOverlay } from "../components/viewer/ViewerDropOverlay.jsx";
 
 export function ViewerLayout({
   pageHeightClass,
@@ -103,13 +104,7 @@ export function ViewerLayout({
         rateLabel={rateLabel}
         lastUpdateLabel={lastUpdateLabel}
       />
-      <div
-        className={`pointer-events-none absolute inset-0 transition-opacity duration-150 ${
-          dragActive ? "opacity-100" : "opacity-0"
-        }`}
-      >
-        <div className="absolute inset-0 bg-accent/10 backdrop-blur-[2px]" />
-      </div>
+      <ViewerDropOverlay active={dragActive} />
       <div className={`relative z-20 ${pageHeightClass} w-full`}>
         <input
           ref={fileInputRef}
@@ -170,7 +165,7 @@ export function ViewerLayout({
           />
         )}
 
-        {((!showScene && loadStatus !== "loading") || dragActive) && !isEmbedQuick && (
+        {!showScene && loadStatus !== "loading" && !isEmbedQuick && (
           <ViewerHome
             dragActive={dragActive}
             loadStatus={loadStatus}

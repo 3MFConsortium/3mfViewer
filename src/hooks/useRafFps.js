@@ -6,11 +6,12 @@ import { useEffect, useRef, useState } from "react";
  */
 export function useRafFps({ sample = 500 } = {}) {
   const frameCount = useRef(0);
-  const lastTimestamp = useRef(performance.now());
+  const lastTimestamp = useRef(0);
   const rafId = useRef(0);
   const [fps, setFps] = useState(0);
 
   useEffect(() => {
+    lastTimestamp.current = performance.now();
     const loop = (now) => {
       frameCount.current += 1;
       if (now - lastTimestamp.current >= sample) {

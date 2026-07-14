@@ -37,16 +37,6 @@ export function ViewerHome({
         <div className="pointer-events-none absolute bottom-[-6rem] right-[-2rem] h-80 w-80 rounded-full bg-zinc-200/60 blur-3xl" />
         <div className="grid w-full gap-5 lg:grid-cols-[1.35fr_0.65fr]">
           <div className="relative overflow-hidden rounded-[2rem] border border-white/70 bg-white/78 shadow-[0_24px_80px_rgba(15,23,42,0.12)] backdrop-blur-xl">
-        {/* Drag active overlay */}
-        {dragActive && (
-          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 border-2 border-dashed border-accent bg-white/80 backdrop-blur-md">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent/10">
-              <IconUpload className="w-8 h-8 text-accent" />
-            </div>
-            <p className="text-lg font-semibold text-accent">Release to load</p>
-          </div>
-        )}
-
         {showReleaseNotes ? (
           /* Release Notes View */
           <>

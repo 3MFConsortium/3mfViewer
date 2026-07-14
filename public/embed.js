@@ -57,7 +57,8 @@
       return { blob: new Blob([file]), name: nameOverride || "model.3mf" };
     }
     if (isTypedArray(file)) {
-      return { blob: new Blob([file.buffer]), name: nameOverride || "model.3mf" };
+      const bytes = file.buffer.slice(file.byteOffset, file.byteOffset + file.byteLength);
+      return { blob: new Blob([bytes]), name: nameOverride || "model.3mf" };
     }
     return null;
   };

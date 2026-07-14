@@ -189,8 +189,8 @@ export function ScenePreferences({ prefs, onChange }) {
                 onChange={(e) => set("beamLatticeMode", e.target.value)}
                 className="h-9 w-48 rounded-full border border-border bg-white px-3 text-sm text-text-primary shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-400"
               >
-                <option value="lines">Lines only (fast)</option>
-                <option value="hybrid">Hybrid (lines + mesh)</option>
+                <option value="solid">Solid beams</option>
+                <option value="centerlines">Centerlines (fast)</option>
               </select>
             </label>
             <label className="flex items-center gap-2">
@@ -230,6 +230,16 @@ export function ScenePreferences({ prefs, onChange }) {
                   <span className="text-xs tabular-nums w-16 text-right text-text-muted">
                     {sliceViewEnabled ? `${Math.min(Math.max(prefs.sliceIndex, 0), sliceMax)} / ${sliceMax}` : "Off"}
                   </span>
+                </label>
+                <label className="flex items-center gap-2 sm:col-span-2">
+                  <input
+                    type="checkbox"
+                    checked={prefs.sliceOverview !== false}
+                    disabled={!sliceViewEnabled}
+                    onChange={(e) => set("sliceOverview", e.target.checked)}
+                    className="accent-accent"
+                  />
+                  <span className="text-sm text-text-primary">Show full stack contours</span>
                 </label>
               </>
             )}

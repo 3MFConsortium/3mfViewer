@@ -1,6 +1,6 @@
 import React, { useRef, useEffect } from "react";
 import * as THREE from "three";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 
 import { useViewerStore } from "../../stores/viewerStore.js";
@@ -11,20 +11,19 @@ import { SceneContent } from "../scene/SceneContent.jsx";
  * Detects when the first frame with geometry is rendered.
  * Sets renderReady to true after confirming geometry is visible.
  */
-function RenderReadyDetector({ hasGeometry }) {
+function RenderReadyDetector({ sceneObject }) {
   const setRenderReady = useViewerStore((state) => state.setRenderReady);
   const frameCountRef = useRef(0);
   const signalledRef = useRef(false);
 
   // Reset when geometry changes
   useEffect(() => {
-    if (!hasGeometry) {
-      signalledRef.current = false;
-      frameCountRef.current = 0;
-    }
-  }, [hasGeometry]);
+    signalledRef.current = false;
+    frameCountRef.current = 0;
+  }, [sceneObject]);
 
   useFrame(() => {
+    const hasGeometry = !!sceneObject;
     if (!hasGeometry || signalledRef.current) return;
 
     // Wait for 2 frames to ensure geometry is fully rendered
@@ -36,6 +35,14 @@ function RenderReadyDetector({ hasGeometry }) {
     }
   });
 
+  return null;
+}
+
+function SceneBackground({ color, transparent }) {
+  const gl = useThree((state) => state.gl);
+  useEffect(() => {
+    gl.setClearColor(new THREE.Color(color), transparent ? 0 : 1);
+  }, [color, gl, transparent]);
   return null;
 }
 
@@ -78,6 +85,7 @@ export function ViewerScene({
           enableDamping
           dampingFactor={0.08}
         />
+        <SceneBackground color={prefs.background} transparent={transparentBackground} />
 
         <ambientLight intensity={prefs.ambient} />
         <hemisphereLight
@@ -114,7 +122,7 @@ export function ViewerScene({
           <gridHelper args={[10000, 500, 0x888888, 0xcccccc]} position={[0, groundY + 0.001, 0]} />
         )}
 
-        <RenderReadyDetector hasGeometry={showScene && !!sceneObject} />
+        <RenderReadyDetector sceneObject={showScene ? sceneObject : null} />
       </Canvas>
     </>
   );

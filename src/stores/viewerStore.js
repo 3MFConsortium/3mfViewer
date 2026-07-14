@@ -40,16 +40,68 @@ export const DEFAULT_PREFS = {
   wireframe: false,
   edges: false,
   edgeColor: "#111827",
-  beamLatticeMode: "lines",
+  beamLatticeMode: "solid",
   uiSceneTree: true,
   uiBottomControls: true,
   uiHelperMessage: true,
   sliceIndex: -1,
+  sliceOverview: true,
   // Theme sync: auto-adjust colors when theme changes
   syncWithTheme: true,
 };
 
 const PREFS_STORAGE_KEY = "3mfViewer:prefs:v2";
+
+const COLOR_PATTERN = /^#[0-9a-f]{6}$/i;
+const BOOLEAN_PREFS = [
+  "ground",
+  "grid",
+  "showStats",
+  "wireframe",
+  "edges",
+  "uiSceneTree",
+  "uiBottomControls",
+  "uiHelperMessage",
+  "sliceOverview",
+  "syncWithTheme",
+];
+const COLOR_PREFS = [
+  "background",
+  "hemiSkyColor",
+  "hemiGroundColor",
+  "rimColor",
+  "edgeColor",
+];
+const NUMBER_PREFS = {
+  ambient: [0, 2],
+  hemiIntensity: [0, 2],
+  rimIntensity: [0, 1],
+};
+
+export const sanitizePrefs = (candidate) => {
+  const source = candidate && typeof candidate === "object" ? candidate : {};
+  const sanitized = { ...DEFAULT_PREFS };
+  BOOLEAN_PREFS.forEach((key) => {
+    if (typeof source[key] === "boolean") sanitized[key] = source[key];
+  });
+  COLOR_PREFS.forEach((key) => {
+    if (typeof source[key] === "string" && COLOR_PATTERN.test(source[key])) {
+      sanitized[key] = source[key];
+    }
+  });
+  Object.entries(NUMBER_PREFS).forEach(([key, [min, max]]) => {
+    const value = Number(source[key]);
+    if (Number.isFinite(value)) sanitized[key] = Math.min(max, Math.max(min, value));
+  });
+  if (source.beamLatticeMode === "solid" || source.beamLatticeMode === "centerlines") {
+    sanitized.beamLatticeMode = source.beamLatticeMode;
+  } else if (source.beamLatticeMode === "lines") {
+    sanitized.beamLatticeMode = "centerlines";
+  }
+  const sliceIndex = Number(source.sliceIndex);
+  if (Number.isInteger(sliceIndex) && sliceIndex >= -1) sanitized.sliceIndex = sliceIndex;
+  return sanitized;
+};
 
 const isEmbedMode = () => {
   if (typeof window === "undefined") return false;
@@ -69,7 +121,7 @@ const loadPrefs = () => {
     if (!raw) return { ...DEFAULT_PREFS };
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return { ...DEFAULT_PREFS };
-    return { ...DEFAULT_PREFS, ...parsed };
+    return sanitizePrefs(parsed);
   } catch {
     return { ...DEFAULT_PREFS };
   }
@@ -236,8 +288,9 @@ const initializer = (set) => ({
     set((state) => {
       const nextPrefs =
         typeof updater === "function" ? updater(state.prefs) : updater;
-      savePrefs(nextPrefs);
-      return { prefs: { ...nextPrefs } };
+      const sanitized = sanitizePrefs(nextPrefs);
+      savePrefs(sanitized);
+      return { prefs: sanitized };
     }),
   setOpenPrefs: (open) =>
     set((state) => ({ ui: { ...state.ui, openPrefs: open } })),

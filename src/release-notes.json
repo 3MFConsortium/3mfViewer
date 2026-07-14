@@ -1,4 +1,12 @@
 {
+  "0.31.0": [
+    "Added source-faithful slice contours with filled cross-sections, Z-layer navigation, and separate Model, Layer, and Stack views",
+    "Fixed component assemblies so transformed instances expose accurate bounds and can be shown or hidden independently",
+    "Rebuilt beam-lattice rendering around physical endpoint radii, declared caps and balls, GPU instancing, and adaptive dense-lattice geometry",
+    "Added Brake Pedal and Dense Octet Lattice examples alongside expanded official slice-stack samples",
+    "Improved loading and interaction reliability with stale-load cancellation, WebGL resource cleanup, corrected camera fitting, and a centered drag-and-drop overlay",
+    "Refreshed application dependencies, accessibility behavior, embed handling, deployment headers, and automated regression coverage"
+  ],
   "0.30.0": [
     "Restored and redesigned the landing page with richer sample, roadmap, and workflow context",
     "Fixed per-item visibility toggles, surfaced model bounds, and refined default mesh shading with subtle feature lines",

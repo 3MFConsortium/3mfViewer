@@ -14,7 +14,7 @@ const sliceSamples = [
 ]
 
 describe('Slice stack integration', () => {
-  it.each(sliceSamples)('loads $fileName without calling unstable bulk slice bindings', async ({ fileName, minSliceCount }) => {
+  it.each(sliceSamples)('reads indexed vertices from $fileName without bulk slice bindings', async ({ fileName, minSliceCount }) => {
     const filePath = path.resolve(__dirname, `../public/data/slice/${fileName}`)
     const buffer = fs.readFileSync(filePath)
     const lib = await lib3mf()
@@ -34,9 +34,12 @@ describe('Slice stack integration', () => {
     expect(firstSlice.vertexCount).toBeGreaterThan(0)
     expect(firstSlice.polygonCount).toBeGreaterThan(0)
     expect(Array.isArray(firstSlice.vertices)).toBe(true)
-    expect(firstSlice.vertices.length).toBe(0)
+    expect(firstSlice.vertices).toHaveLength(firstSlice.vertexCount)
+    expect(firstSlice.vertices.every(({ x, y }) => Number.isFinite(x) && Number.isFinite(y))).toBe(true)
     expect(Array.isArray(firstSlice.polygonIndexCounts)).toBe(true)
-    expect(firstSlice.polygonIndexCounts.length).toBeGreaterThan(0)
+    expect(firstSlice.polygonIndexCounts).toHaveLength(firstSlice.polygonCount)
+    expect(firstSlice.polygons).toHaveLength(firstSlice.polygonCount)
+    expect(firstSlice.polygons.every(({ indices }) => indices.length >= 3)).toBe(true)
   })
 })
 

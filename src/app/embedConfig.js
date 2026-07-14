@@ -54,7 +54,7 @@ export const parseEmbedConfig = () => {
 export const decodeBase64ToArrayBuffer = (input) => {
   if (!input) return null;
   const base64 = input.includes(",") ? input.split(",").pop() : input;
-  let binary = "";
+  let binary;
   try {
     binary = window.atob(base64);
   } catch {

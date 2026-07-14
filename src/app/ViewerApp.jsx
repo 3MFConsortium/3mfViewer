@@ -58,7 +58,7 @@ function ViewerApp() {
   const finishLoad = useViewerStore((state) => state.finishLoad);
   const setLoadingScene = useViewerStore((state) => state.setLoadingScene);
   const failLoad = useViewerStore((state) => state.failLoad);
-  const clearScene = useViewerStore((state) => state.clearScene);
+  const clearSceneState = useViewerStore((state) => state.clearScene);
   const setPrefs = useViewerStore((state) => state.setPrefs);
   const setOpenPrefs = useViewerStore((state) => state.setOpenPrefs);
   const restorePrefs = useViewerStore((state) => state.restorePrefs);
@@ -120,10 +120,11 @@ function ViewerApp() {
     handleFileInputChange,
     handleBrowseClick,
     checkSpecifications,
+    cancelPendingLoads,
   } = useSceneLoading({
     load3mf,
     ensureLib3mf,
-    beamLatticeLinesOnly: prefs.beamLatticeMode === "lines",
+    beamLatticeLinesOnly: prefs.beamLatticeMode === "centerlines",
     specUrls,
     beginLoad,
     finishLoad,
@@ -141,6 +142,11 @@ function ViewerApp() {
     setMobileNavOpen,
   });
 
+  const clearScene = useCallback(() => {
+    cancelPendingLoads();
+    clearSceneState();
+  }, [cancelPendingLoads, clearSceneState]);
+
   // ---------- samples & home content ----------
 
   // ---------- scene prefs ----------
@@ -149,19 +155,19 @@ function ViewerApp() {
 
   const sceneBounds = useMemo(() => getSceneBounds(sceneObject), [sceneObject]);
   const sliceMax = useMemo(() => getSliceMax(sceneData), [sceneData]);
+  const initializedSliceSceneRef = useRef(null);
 
-  useSliceView(sceneObject, prefs.sliceIndex, sliceMax);
+  useSliceView(sceneObject, prefs.sliceIndex, sliceMax, prefs.sliceOverview);
 
   useEffect(() => {
-    if (loadStatus !== "ready") return;
-    if (sliceMax >= 0 && prefs.sliceIndex < 0) {
-      setPrefs((current) => ({ ...current, sliceIndex: 0 }));
-      return;
-    }
-    if (sliceMax < 0 && prefs.sliceIndex >= 0) {
-      setPrefs((current) => ({ ...current, sliceIndex: -1 }));
-    }
-  }, [loadStatus, prefs.sliceIndex, setPrefs, sliceMax]);
+    if (loadStatus !== "ready" || !sceneObject) return;
+    if (initializedSliceSceneRef.current === sceneObject) return;
+    initializedSliceSceneRef.current = sceneObject;
+    setPrefs((current) => ({
+      ...current,
+      sliceIndex: sliceMax >= 0 ? Math.floor(sliceMax / 2) : -1,
+    }));
+  }, [loadStatus, sceneObject, setPrefs, sliceMax]);
 
   // ---------- refs ----------
   const controlsRef = useRef(null);
@@ -280,8 +286,6 @@ function ViewerApp() {
   const pageHeightClass = showScene || isEmbedQuick ? "h-screen" : "min-h-screen";
   const pageBackgroundClass = isEmbedTransparent
     ? "bg-transparent"
-    : dragActive
-    ? "bg-accent-subtle"
     : "bg-background";
 
   const coarseTabletBreakpoint = 1024;

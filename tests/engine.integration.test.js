@@ -16,7 +16,7 @@ describe('Lib3mfEngine Integration', () => {
         const result = await engine.loadFromBuffer(new Uint8Array(buffer), 'cube.3mf')
 
         expect(result).toBeDefined()
-        expect(result.counts.meshes).toBe(1)
+        expect(result.counts.meshes).toBe(3)
         expect(result.items.length).toBe(1)
         expect(result.meshResources.length).toBe(1)
 
@@ -25,6 +25,87 @@ describe('Lib3mfEngine Integration', () => {
         expect(mesh.triangleCount).toBe(12)
         expect(mesh.positions.length).toBe(8 * 3)
         expect(mesh.indices.length).toBe(12 * 3)
+
+        expect(result.geometry.instances).toHaveLength(3)
+        expect(new Set(result.geometry.instances.map((instance) => instance.visibilityId)).size).toBe(3)
+        expect(new Set(Array.from(result.geometry.instanceIds))).toEqual(new Set([1, 2, 3]))
+        expect(result.geometry.instances.map((instance) => instance.bounds.size)).toEqual([
+            { x: 10, y: 20, z: 30 },
+            { x: 10, y: 20, z: 30 },
+            { x: 10, y: 20, z: 30 },
+        ])
+    })
+
+    it('preserves independent instances and transformed bounds in PartsForBoundingBox.3mf', async () => {
+        const lib = await lib3mf()
+        const engine = new Lib3mfEngine(lib)
+        const filePath = path.resolve(__dirname, '../public/data/PartsForBoundingBox.3mf')
+        const result = await engine.loadFromBuffer(
+            new Uint8Array(fs.readFileSync(filePath)),
+            'PartsForBoundingBox.3mf'
+        )
+
+        expect(result.geometry.instances).toHaveLength(3)
+        expect(result.geometry.instances.map((instance) => instance.resourceId)).toEqual([2, 3, 2])
+        expect(new Set(result.geometry.instances.map((instance) => instance.visibilityId)).size).toBe(3)
+        expect(result.geometry.instances.every((instance) =>
+            Object.values(instance.bounds.size).every((value) => Number.isFinite(value) && value > 0)
+        )).toBe(true)
+    })
+
+    it('reads beam lattices that coexist with a core mesh without flattening their radii', async () => {
+        const lib = await lib3mf()
+        const engine = new Lib3mfEngine(lib)
+        const filePath = path.resolve(__dirname, './fixtures/BeamLatticeBox.3mf')
+        const result = await engine.loadFromBuffer(
+            new Uint8Array(fs.readFileSync(filePath)),
+            'BeamLatticeBox.3mf'
+        )
+
+        const beamResource = result.meshResources.find((resource) => resource.isBeamLattice)
+        expect(beamResource?.triangleCount).toBe(12)
+        expect(beamResource?.beamLattice?.beamCount).toBe(12)
+        expect(result.geometry.vertexCount).toBe(36)
+        expect(result.geometry.beamLines.positions).toHaveLength(12 * 6)
+        expect(result.geometry.beamLines.radii).toHaveLength(12 * 2)
+        expect(Array.from(result.geometry.beamLines.radii.slice(2, 4))).toEqual([
+            expect.closeTo(3.1),
+            expect.closeTo(3.2),
+        ])
+        expect(result.geometry.instances[0].bounds.min.x).toBeLessThan(0)
+    })
+
+    it('loads the public brake pedal with its mesh and spherical-cap lattice', async () => {
+        const lib = await lib3mf()
+        const engine = new Lib3mfEngine(lib)
+        const filePath = path.resolve(__dirname, '../public/data/BrakePedal.3mf')
+        const result = await engine.loadFromBuffer(
+            new Uint8Array(fs.readFileSync(filePath)),
+            'BrakePedal.3mf'
+        )
+
+        const beamResource = result.meshResources.find((resource) => resource.isBeamLattice)
+        expect(beamResource?.beamLattice?.beamCount).toBe(2048)
+        expect(beamResource?.beamLattice?.balls).toHaveLength(0)
+        expect(beamResource?.beamLattice?.beams[0].capModes).toEqual(['sphere', 'sphere'])
+        expect(result.geometry.vertexCount / 3).toBe(1884)
+        expect(result.geometry.beamLines.renderMode).toBe('solid')
+    })
+
+    it('loads the dense octet stress model without expanding beams into triangles', async () => {
+        const lib = await lib3mf()
+        const engine = new Lib3mfEngine(lib)
+        const filePath = path.resolve(__dirname, '../public/data/OctetLattice.3mf')
+        const result = await engine.loadFromBuffer(
+            new Uint8Array(fs.readFileSync(filePath)),
+            'OctetLattice.3mf'
+        )
+
+        expect(result.meshResources.filter((resource) => resource.isBeamLattice)).toHaveLength(14)
+        expect(result.geometry.instances).toHaveLength(14)
+        expect(result.geometry.vertexCount).toBe(0)
+        expect(result.geometry.beamLines.positions).toHaveLength(132440 * 6)
+        expect(result.geometry.beamLines.capModes.every((mode) => mode === 1)).toBe(true)
     })
 
     it('should load and parse colorcube.3mf with vertex colors', async () => {

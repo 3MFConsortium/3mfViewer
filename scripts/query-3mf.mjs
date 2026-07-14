@@ -46,6 +46,18 @@ if (!fs.existsSync(resolvedPath)) {
     uuid: resource.uuid,
     vertexCount: resource.vertexCount,
     triangleCount: resource.triangleCount,
+    isBeamLattice: resource.isBeamLattice,
+    beamCount: resource.beamLattice?.beamCount ?? 0,
+    ballCount: resource.beamLattice?.ballCount ?? 0,
+    beamRadiusRange: resource.beamLattice?.beams?.length
+      ? resource.beamLattice.beams.reduce(
+          (range, beam) => ({
+            min: Math.min(range.min, ...beam.radii),
+            max: Math.max(range.max, ...beam.radii),
+          }),
+          { min: Infinity, max: -Infinity }
+        )
+      : null,
     usesVertexColors: resource.usesVertexColors,
     materialColorStats: resource.materialColorStats,
   }));
@@ -59,6 +71,7 @@ if (!fs.existsSync(resolvedPath)) {
   }));
 
   const items = parsed.items;
+  const instances = parsed.geometry?.instances ?? [];
 
-  console.log(JSON.stringify({ summary, diagnostics, meshes, components, items }, null, 2));
+  console.log(JSON.stringify({ summary, diagnostics, meshes, components, instances, items }, null, 2));
 })();

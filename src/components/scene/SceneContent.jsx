@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from "react";
 import * as THREE from "three";
+import { disposeThreeObject } from "../../lib/disposeThreeObject.js";
 
 export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds = [] }) {
   const wireframe = !!renderOptions?.wireframe;
@@ -13,7 +14,7 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
 
     object.traverse((child) => {
       if (!child.isMesh) return;
-      if (child.userData?.isBeamLatticeLines) return;
+      if (child.userData?.isBeamLattice) return;
       const materials = Array.isArray(child.material)
         ? child.material
         : [child.material];
@@ -57,34 +58,32 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
         .filter((value) => Number.isFinite(value))
     );
     object.traverse((child) => {
-      if (!child.isMesh) return;
+      if (!child.isMesh && !child.isLineSegments) return;
       if (child.userData?.isSliceLine) return;
 
-      if (child.userData?.isBeamLatticeLines) {
-        const idAttr = child.geometry?.getAttribute("virtualResourceId");
-        if (idAttr) {
-          const resourceIdsInMesh = new Set();
-          for (let i = 0; i < idAttr.count; i += 1) {
-            resourceIdsInMesh.add(idAttr.getX(i));
-          }
-          const anyHidden = [...resourceIdsInMesh].some(id => hiddenIds.has(id));
-          child.visible = !anyHidden;
-        } else {
-          child.visible = true;
-        }
+      let visible;
+      if (child.userData?.visibilityId) {
+        visible = !hiddenSet.has(String(child.userData.visibilityId));
       } else if (child.userData?.isBeamLattice) {
         const resourceId = child.userData.resourceId;
-        child.visible = !hiddenIds.has(resourceId);
+        visible = !hiddenIds.has(resourceId);
       } else if (child.userData?.resourceId !== undefined && child.userData?.resourceId !== null) {
-        child.visible = !hiddenIds.has(Number(child.userData.resourceId));
+        visible = !hiddenIds.has(Number(child.userData.resourceId));
       } else {
-        child.visible = !hiddenSet.has(child.uuid);
+        visible = !hiddenSet.has(child.uuid);
+      }
+
+      if (child.userData?.sliceViewHidden) {
+        child.userData.sliceViewRestoreVisibility = visible;
+        child.visible = false;
+      } else {
+        child.visible = visible;
       }
     });
   }, [object, hiddenSet, hiddenMeshIds]);
 
   useEffect(() => {
-    if (!object) return;
+      if (!object) return;
 
     object.traverse((child) => {
       if (!child.isMesh) return;
@@ -106,6 +105,7 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
       });
 
       const edgesHelper = child.userData.edgesHelper;
+      if (child.userData?.isBeamLattice) return;
       const shouldShowSubtleEdges = !wireframe;
       const desiredOpacity = showEdges ? 0.55 : shouldShowSubtleEdges ? 0.18 : 0;
       const desiredColor = showEdges ? edgeColor : subtleEdgeColor;
@@ -144,6 +144,8 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
       }
     });
   }, [object, wireframe, showEdges, edgeColor, subtleEdgeColor, hiddenSet]);
+
+  useEffect(() => () => disposeThreeObject(object), [object]);
 
   return (
     <group ref={contentRef}>

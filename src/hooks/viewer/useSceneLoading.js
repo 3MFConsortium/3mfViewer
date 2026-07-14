@@ -1,6 +1,8 @@
 import { useCallback, useRef, useState } from "react";
 
 import { formatDiagnosticsForUi, integrateDiagnosticsIntoResult } from "../../lib/diagnostics.js";
+import { disposeThreeObject } from "../../lib/disposeThreeObject.js";
+import { createLoadGate } from "../../lib/loadGate.js";
 
 export const useSceneLoading = ({
   load3mf,
@@ -24,6 +26,7 @@ export const useSceneLoading = ({
 }) => {
   const fileInputRef = useRef(null);
   const lastProgressRef = useRef({ triangles: 0, at: 0 });
+  const loadGateRef = useRef(createLoadGate());
   const [loadProgress, setLoadProgress] = useState(null);
   const [, setLoadTimings] = useState([]);
   const [loadStartMs, setLoadStartMs] = useState(null);
@@ -145,6 +148,8 @@ export const useSceneLoading = ({
 
   const handleLoadSample = useCallback(
     async (sample) => {
+      const requestId = loadGateRef.current.begin();
+      const isCurrent = () => loadGateRef.current.isCurrent(requestId);
       try {
         resetTransientUi();
         resetTransientSpecs();
@@ -163,6 +168,7 @@ export const useSceneLoading = ({
         for (const u of urls) {
           try {
             const res = await fetch(u, { mode: "cors" });
+            if (!isCurrent()) return;
             if (!res.ok) continue;
             const buf = await res.arrayBuffer();
             if (buf && buf.byteLength > 0) {
@@ -181,10 +187,11 @@ export const useSceneLoading = ({
           specificationUrls: specUrls,
           beamLatticeLinesOnly,
           onStream: (partial) => {
-            if (!partial?.group) return;
+            if (!isCurrent() || !partial?.group) return;
             setLoadingScene(partial.group, partial);
           },
           onProgress: (progress) => {
+            if (!isCurrent()) return;
             setLoadProgress((prev) => ({ ...prev, ...progress }));
             const now = performance.now();
             const last = lastProgressRef.current;
@@ -199,32 +206,41 @@ export const useSceneLoading = ({
             setLoadLastUpdateMs(now);
           },
           onMeshTiming: (timing) => {
+            if (!isCurrent()) return;
             setLoadTimings((prev) => [...prev, timing]);
           },
           onStage: (stageInfo) => {
+            if (!isCurrent()) return;
             setLoadStage(stageInfo);
           },
         });
+        if (!isCurrent()) {
+          disposeThreeObject(rawResult?.group);
+          return;
+        }
         const processedResult = applyLoadedResult(rawResult, fileLabel);
         if (Array.isArray(processedResult.metadata?.specifications)) {
           setSpecResults(processedResult.metadata.specifications);
           setSpecUrls(processedResult.metadata.specifications.map((s) => s.url).filter(Boolean));
         }
       } catch (err) {
+        if (!isCurrent()) return;
         console.error("Failed to load sample", err);
         const message = err?.message || "Unable to load sample.";
         setSampleError(message);
         failLoad(message);
         resetTransientSpecs();
       } finally {
-        setSampleLoading(null);
-        setLoadProgress(null);
-        setLoadTimings([]);
-        setLoadStartMs(null);
-        setLoadRate(null);
-        setLoadLastUpdateMs(null);
-        setLoadStage(null);
-        lastProgressRef.current = { triangles: 0, at: 0 };
+        if (isCurrent()) {
+          setSampleLoading(null);
+          setLoadProgress(null);
+          setLoadTimings([]);
+          setLoadStartMs(null);
+          setLoadRate(null);
+          setLoadLastUpdateMs(null);
+          setLoadStage(null);
+          lastProgressRef.current = { triangles: 0, at: 0 };
+        }
       }
     },
     [
@@ -248,6 +264,9 @@ export const useSceneLoading = ({
   const loadFromArrayBuffer = useCallback(
     async (arrayBuffer, name, options = {}) => {
       if (!arrayBuffer) return;
+      const requestId = options.requestId ?? loadGateRef.current.begin();
+      const isCurrent = () => loadGateRef.current.isCurrent(requestId);
+      if (!isCurrent()) return;
       const fileName = name || "embedded.3mf";
 
       resetTransientUi();
@@ -271,10 +290,11 @@ export const useSceneLoading = ({
           specificationUrls: specUrls,
           beamLatticeLinesOnly,
           onStream: (partial) => {
-            if (!partial?.group) return;
+            if (!isCurrent() || !partial?.group) return;
             setLoadingScene(partial.group, partial);
           },
           onProgress: (progress) => {
+            if (!isCurrent()) return;
             setLoadProgress((prev) => ({ ...prev, ...progress }));
             const now = performance.now();
             const last = lastProgressRef.current;
@@ -289,13 +309,19 @@ export const useSceneLoading = ({
             setLoadLastUpdateMs(now);
           },
           onMeshTiming: (timing) => {
+            if (!isCurrent()) return;
             setLoadTimings((prev) => [...prev, timing]);
           },
           onStage: (stageInfo) => {
+            if (!isCurrent()) return;
             setLoadStage(stageInfo);
           },
         });
 
+        if (!isCurrent()) {
+          disposeThreeObject(rawResult?.group);
+          return;
+        }
         const processedResult = applyLoadedResult(rawResult, fileName);
         if (Array.isArray(processedResult.metadata?.specifications)) {
           setSpecResults(processedResult.metadata.specifications);
@@ -309,6 +335,7 @@ export const useSceneLoading = ({
         setLoadStage(null);
         lastProgressRef.current = { triangles: 0, at: 0 };
       } catch (err) {
+        if (!isCurrent()) return;
         console.error("Failed to load model", err);
         const message = err?.message || "Unable to load file.";
         failLoad(message);
@@ -341,8 +368,10 @@ export const useSceneLoading = ({
   const handleLoadFile = useCallback(
     async (file) => {
       if (!file) return;
+      const requestId = loadGateRef.current.begin();
       const arrayBuffer = await file.arrayBuffer();
-      await loadFromArrayBuffer(arrayBuffer, file.name);
+      if (!loadGateRef.current.isCurrent(requestId)) return;
+      await loadFromArrayBuffer(arrayBuffer, file.name, { requestId });
     },
     [loadFromArrayBuffer]
   );
@@ -360,6 +389,18 @@ export const useSceneLoading = ({
     fileInputRef.current?.click();
   }, []);
 
+  const cancelPendingLoads = useCallback(() => {
+    loadGateRef.current.cancel();
+    setSampleLoading(null);
+    setLoadProgress(null);
+    setLoadTimings([]);
+    setLoadStartMs(null);
+    setLoadRate(null);
+    setLoadLastUpdateMs(null);
+    setLoadStage(null);
+    lastProgressRef.current = { triangles: 0, at: 0 };
+  }, [setSampleLoading]);
+
   return {
     fileInputRef,
     loadProgress,
@@ -373,5 +414,6 @@ export const useSceneLoading = ({
     handleFileInputChange,
     handleBrowseClick,
     checkSpecifications,
+    cancelPendingLoads,
   };
 };

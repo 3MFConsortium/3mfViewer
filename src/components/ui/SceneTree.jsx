@@ -94,6 +94,7 @@ function TreeNode({
   selectedId,
   onToggleVisibility,
   hiddenMeshIds,
+  depth = 1,
 }) {
   const [isOpen, setIsOpen] = useState(node.isOpenByDefault || false);
   const hasChildren = node.children && node.children.length > 0;
@@ -127,10 +128,29 @@ function TreeNode({
     if (hasChildren) setIsOpen((prev) => !prev);
   };
 
+  const handleKeyDown = (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      handleSelect();
+      event.preventDefault();
+    } else if (event.key === "ArrowRight" && hasChildren) {
+      setIsOpen(true);
+      event.preventDefault();
+    } else if (event.key === "ArrowLeft" && hasChildren) {
+      setIsOpen(false);
+      event.preventDefault();
+    }
+  };
+
   return (
     <li>
       <div
         onClick={handleSelect}
+        onKeyDown={handleKeyDown}
+        role="treeitem"
+        tabIndex={0}
+        aria-level={depth}
+        aria-selected={isSelected}
+        aria-expanded={hasChildren ? isOpen : undefined}
         className={`group flex items-center gap-2 rounded-lg px-2 py-1.5 transition ${
           hasChildren ? "cursor-pointer" : "cursor-default"
         } ${isSelected ? "bg-surface ring-1 ring-border" : "hover:bg-surface/70"}`}
@@ -160,7 +180,7 @@ function TreeNode({
         )}
       </div>
       {hasChildren && isOpen && (
-        <ul className="pl-6 border-l border-border ml-4">
+        <ul role="group" className="pl-6 border-l border-border ml-4">
           {node.children.map((child) => (
             <TreeNode
               key={child.id}
@@ -169,6 +189,7 @@ function TreeNode({
               selectedId={selectedId}
               onToggleVisibility={onToggleVisibility}
               hiddenMeshIds={hiddenMeshIds}
+              depth={depth + 1}
             />
           ))}
         </ul>
@@ -258,17 +279,17 @@ export function SceneTree({
   const baseMaterialGroups = useMemo(() => {
     if (!Array.isArray(metadata?.baseMaterialGroups)) return [];
     return metadata.baseMaterialGroups;
-  }, [metadata?.baseMaterialGroups]);
+  }, [metadata]);
 
   const colorGroups = useMemo(() => {
     if (!Array.isArray(metadata?.colorGroups)) return [];
     return metadata.colorGroups;
-  }, [metadata?.colorGroups]);
+  }, [metadata]);
 
   const sliceStacks = useMemo(() => {
     if (!Array.isArray(metadata?.sliceStacks)) return [];
     return metadata.sliceStacks;
-  }, [metadata?.sliceStacks]);
+  }, [metadata]);
 
   const baseMaterialGroupMap = useMemo(() => {
     const map = new Map();
@@ -924,7 +945,7 @@ export function SceneTree({
   const listSection = (
     <div className="flex-[3] min-h-0 overflow-y-auto px-3 py-3">
       {items.length > 0 ? (
-        <ul className="space-y-1">
+        <ul role="tree" aria-label="3MF scene objects" className="space-y-1">
           {items.map((node) => (
             <TreeNode
               key={node.id}
@@ -1633,6 +1654,28 @@ export function SceneTree({
           rows.push({
             label: "Triangles",
             value: meta.triangleCount.toLocaleString(),
+            numeric: true,
+            align: "right",
+          });
+        }
+        if (meta.bounds?.size) {
+          rows.push({
+            label: "Bounding box",
+            value: `${meta.bounds.size.x.toFixed(3)} × ${meta.bounds.size.y.toFixed(3)} × ${meta.bounds.size.z.toFixed(3)}`,
+            numeric: true,
+            align: "right",
+          });
+        }
+        if (meta.bounds?.min && meta.bounds?.max) {
+          rows.push({
+            label: "Bounds min",
+            value: `${meta.bounds.min.x.toFixed(3)}, ${meta.bounds.min.y.toFixed(3)}, ${meta.bounds.min.z.toFixed(3)}`,
+            numeric: true,
+            align: "right",
+          });
+          rows.push({
+            label: "Bounds max",
+            value: `${meta.bounds.max.x.toFixed(3)}, ${meta.bounds.max.y.toFixed(3)}, ${meta.bounds.max.z.toFixed(3)}`,
             numeric: true,
             align: "right",
           });

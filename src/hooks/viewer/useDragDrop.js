@@ -9,16 +9,18 @@ export const useDragDrop = (handleLoadFile, setDragActive) => {
       event.stopPropagation();
     };
 
+    const isFileDrag = (event) => event.dataTransfer?.types?.includes("Files") === true;
+
     const handleDragEnter = (event) => {
       prevent(event);
+      if (!isFileDrag(event)) return;
       dragDepthRef.current += 1;
-      if (event.dataTransfer?.types?.includes("Files")) {
-        setDragActive(true);
-      }
+      setDragActive(true);
     };
 
     const handleDragOver = (event) => {
       prevent(event);
+      if (!isFileDrag(event)) return;
       if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
       setDragActive(true);
     };
@@ -41,16 +43,25 @@ export const useDragDrop = (handleLoadFile, setDragActive) => {
       }
     };
 
+    const resetDrag = () => {
+      dragDepthRef.current = 0;
+      setDragActive(false);
+    };
+
     window.addEventListener("dragenter", handleDragEnter);
     window.addEventListener("dragover", handleDragOver);
     window.addEventListener("dragleave", handleDragLeave);
     window.addEventListener("drop", handleDrop);
+    window.addEventListener("dragend", resetDrag);
+    window.addEventListener("blur", resetDrag);
 
     return () => {
       window.removeEventListener("dragenter", handleDragEnter);
       window.removeEventListener("dragover", handleDragOver);
       window.removeEventListener("dragleave", handleDragLeave);
       window.removeEventListener("drop", handleDrop);
+      window.removeEventListener("dragend", resetDrag);
+      window.removeEventListener("blur", resetDrag);
     };
   }, [handleLoadFile, setDragActive]);
 };

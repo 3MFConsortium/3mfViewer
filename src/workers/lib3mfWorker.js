@@ -29,10 +29,17 @@ const collectTransferables = (parsed) => {
     pushBuffer(parsed.geometry.colors);
     pushBuffer(parsed.geometry.uvs);
     pushBuffer(parsed.geometry.resourceIds);
+    pushBuffer(parsed.geometry.instanceIds);
     if (parsed.geometry.beamLines) {
       pushBuffer(parsed.geometry.beamLines.positions);
       pushBuffer(parsed.geometry.beamLines.resourceIds);
+      pushBuffer(parsed.geometry.beamLines.instanceIds);
       pushBuffer(parsed.geometry.beamLines.radii);
+      pushBuffer(parsed.geometry.beamLines.capModes);
+      pushBuffer(parsed.geometry.beamLines.ballPositions);
+      pushBuffer(parsed.geometry.beamLines.ballResourceIds);
+      pushBuffer(parsed.geometry.beamLines.ballInstanceIds);
+      pushBuffer(parsed.geometry.beamLines.ballRadii);
     }
   } else {
     // Legacy fallback (shouldn't be needed if engine updated, but safe to keep or remove specific resource buffers if we don't want them anymore)

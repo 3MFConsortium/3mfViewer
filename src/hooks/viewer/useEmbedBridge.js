@@ -53,6 +53,7 @@ export const useEmbedBridge = ({
       }
       if (payload.url) {
         const response = await fetch(payload.url);
+        if (!response.ok) throw new Error(`Failed to fetch 3MF (${response.status}).`);
         const buffer = await response.arrayBuffer();
         const nameFromUrl = payload.name || payload.url.split("/").pop() || "embedded.3mf";
         await loadFromArrayBuffer(buffer, nameFromUrl, { skipExtensionCheck: !payload.name });
@@ -121,6 +122,7 @@ export const useEmbedBridge = ({
     const run = async () => {
       try {
         const response = await fetch(embedConfig.src);
+        if (!response.ok) throw new Error(`Failed to fetch 3MF (${response.status}).`);
         const buffer = await response.arrayBuffer();
         const nameFromUrl = embedConfig.src.split("/").pop() || "embedded.3mf";
         await loadFromArrayBuffer(buffer, nameFromUrl, { skipExtensionCheck: true });

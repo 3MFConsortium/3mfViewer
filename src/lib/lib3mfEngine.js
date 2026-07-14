@@ -233,7 +233,7 @@ export class Lib3mfEngine {
     collectWarnings(readerInstance) {
         if (!readerInstance?.GetWarningCount) return [];
         const warnings = [];
-        let count = 0;
+        let count;
         try {
             count = readerInstance.GetWarningCount() ?? 0;
         } catch (err) {
@@ -726,22 +726,51 @@ export class Lib3mfEngine {
                             const vertexCount = Number.isFinite(Number(vertexCountValue)) ? Number(vertexCountValue) : 0;
                             const polygonCountValue = slice.GetPolygonCount?.();
                             const polygonCount = Number.isFinite(Number(polygonCountValue)) ? Number(polygonCountValue) : 0;
-                            for (let p = 0; p < polygonCount; p += 1) {
-                                const countValue = slice.GetPolygonIndexCount?.(p);
-                                void countValue;
+                            const vertices = [];
+                            for (let v = 0; v < vertexCount; v += 1) {
+                                const vertex = slice.GetVertex?.(v);
+                                if (!vertex) continue;
+                                try {
+                                    const x = Number(vertex.get_Coordinates0?.());
+                                    const y = Number(vertex.get_Coordinates1?.());
+                                    if (Number.isFinite(x) && Number.isFinite(y)) {
+                                        vertices.push({ x, y });
+                                    }
+                                } finally {
+                                    safeDelete(vertex);
+                                }
                             }
+
+                            const polygonIndexCounts = Array.from({ length: polygonCount }, (_, p) => {
+                                const countValue = slice.GetPolygonIndexCount?.(p);
+                                return Number.isFinite(Number(countValue)) ? Number(countValue) : null;
+                            });
+
+                            // The current WASM binding cannot safely return polygon index vectors. Some
+                            // producers emit each closed loop as a contiguous run, with the first index
+                            // repeated at the end. Recover only that unambiguous layout.
+                            const polygonVertexCounts = polygonIndexCounts.map((count) => count - 1);
+                            const hasContiguousLoops =
+                                vertices.length === vertexCount &&
+                                polygonVertexCounts.every((count) => Number.isInteger(count) && count >= 3) &&
+                                polygonVertexCounts.reduce((total, count) => total + count, 0) === vertexCount;
+                            let vertexOffset = 0;
+                            const polygons = hasContiguousLoops
+                                ? polygonVertexCounts.map((count) => {
+                                    const indices = Array.from({ length: count }, (_, index) => vertexOffset + index);
+                                    vertexOffset += count;
+                                    return { indices };
+                                })
+                                : [];
 
                             slices.push({
                                 index: i,
                                 zTop,
                                 vertexCount,
                                 polygonCount,
-                                vertices: [],
-                                polygonIndexCounts: Array.from({ length: polygonCount }, (_, p) => {
-                                    const countValue = slice.GetPolygonIndexCount?.(p);
-                                    return Number.isFinite(Number(countValue)) ? Number(countValue) : null;
-                                }),
-                                polygons: [],
+                                vertices,
+                                polygonIndexCounts,
+                                polygons,
                             });
                         } finally {
                             safeDelete(slice);
@@ -1357,7 +1386,7 @@ export class Lib3mfEngine {
     }
 
     readBeamLattice(meshObj) {
-        let beamLattice = null;
+        let beamLattice;
         try {
             beamLattice = meshObj.BeamLattice?.();
         } catch (err) {
@@ -1374,6 +1403,12 @@ export class Lib3mfEngine {
             }
 
             const beams = [];
+            const capModes = this.lib.eBeamLatticeCapMode;
+            const capModeName = (value) => {
+                if (value === capModes?.Sphere) return "sphere";
+                if (value === capModes?.HemiSphere) return "hemisphere";
+                return "butt";
+            };
             for (let i = 0; i < beamCount; i++) {
                 try {
                     const beam = beamLattice.GetBeam?.(i);
@@ -1381,7 +1416,10 @@ export class Lib3mfEngine {
                         beams.push({
                             indices: [beam.get_Indices0?.() ?? 0, beam.get_Indices1?.() ?? 0],
                             radii: [beam.get_Radii0?.() ?? 1, beam.get_Radii1?.() ?? 1],
-                            capModes: [beam.get_CapModes0?.() ?? 0, beam.get_CapModes1?.() ?? 0],
+                            capModes: [
+                                capModeName(beam.get_CapModes0?.()),
+                                capModeName(beam.get_CapModes1?.()),
+                            ],
                         });
                         safeDelete(beam);
                     }
@@ -1390,12 +1428,15 @@ export class Lib3mfEngine {
                 }
             }
 
-            // Get ball options to determine if we should auto-generate balls
             let defaultBallRadius = 0;
+            let ballMode = "none";
             try {
                 const ballOptions = beamLattice.GetBallOptions?.();
                 if (ballOptions) {
                     defaultBallRadius = ballOptions.BallRadius ?? 0;
+                    const modes = this.lib.eBeamLatticeBallMode;
+                    if (ballOptions.BallMode === modes?.All) ballMode = "all";
+                    else if (ballOptions.BallMode === modes?.Mixed) ballMode = "mixed";
                 }
             } catch (err) {
                 logCatch("readBeamLattice.GetBallOptions failed", err);
@@ -1418,29 +1459,14 @@ export class Lib3mfEngine {
                 }
             }
 
-            // Auto-generate balls at all beam nodes for visual effect
-            // Calculate average radius at each node from connected beams
-            const nodeRadii = new Map(); // nodeIndex -> [radii]
-            for (const beam of beams) {
-                const idx0 = beam.indices[0];
-                const idx1 = beam.indices[1];
-                if (!nodeRadii.has(idx0)) nodeRadii.set(idx0, []);
-                if (!nodeRadii.has(idx1)) nodeRadii.set(idx1, []);
-                nodeRadii.get(idx0).push(beam.radii[0]);
-                nodeRadii.get(idx1).push(beam.radii[1]);
-            }
-
-            // Add balls at nodes that don't already have explicit balls
-            const existingBallNodes = new Set(balls.map(b => b.index));
-            for (const [nodeIndex, radii] of nodeRadii) {
-                if (!existingBallNodes.has(nodeIndex)) {
-                    // Use average radius of connected beams, larger for visual effect to cover intersections
-                    const avgRadius = radii.reduce((a, b) => a + b, 0) / radii.length;
-                    balls.push({
-                        index: nodeIndex,
-                        radius: avgRadius * 1.5, // 50% larger than beam radius to cover intersections
-                    });
-                }
+            if (ballMode === "all") {
+                const existingBallNodes = new Set(balls.map((ball) => ball.index));
+                const usedNodes = new Set(beams.flatMap((beam) => beam.indices));
+                usedNodes.forEach((nodeIndex) => {
+                    if (!existingBallNodes.has(nodeIndex)) {
+                        balls.push({ index: nodeIndex, radius: defaultBallRadius });
+                    }
+                });
             }
 
             const minLength = beamLattice.GetMinLength?.() ?? 0;
@@ -1455,6 +1481,8 @@ export class Lib3mfEngine {
                 minLength,
                 beamCount: beams.length,
                 ballCount: balls.length,
+                ballMode,
+                defaultBallRadius,
             };
         } catch (err) {
             logCatch("readBeamLattice failed", err);
@@ -1746,7 +1774,7 @@ export class Lib3mfEngine {
                             geometryInfo = this.readMeshGeometry(current);
                         }
 
-                        if (!geometryInfo && vertexCount > 0) {
+                        if (vertexCount > 0) {
                             const nodePositions = new Float32Array(vertexCount * 3);
                             for (let i = 0; i < vertexCount; i += 1) {
                                 const vertex = current.GetVertex(i);
@@ -1759,9 +1787,8 @@ export class Lib3mfEngine {
 
                             beamLatticeInfo = this.readBeamLattice(current);
                             if (beamLatticeInfo) {
-                                const linesOnly = this.options?.beamLatticeLinesOnly === true;
-                                if (linesOnly) {
-                                    isBeamLattice = true;
+                                isBeamLattice = true;
+                                if (!geometryInfo) {
                                     geometryInfo = {
                                         positions: new Float32Array(0),
                                         indices: null,
@@ -1772,26 +1799,8 @@ export class Lib3mfEngine {
                                         beamLattice: beamLatticeInfo,
                                         nodePositions,
                                     };
-                                } else {
-                                    const beamGeometry = this.generateBeamGeometry(beamLatticeInfo, nodePositions, {
-                                        segments: 3,
-                                        includeCaps: false,
-                                        includeBalls: false,
-                                    });
-                                    if (beamGeometry && beamGeometry.triangleCount > 0) {
-                                        isBeamLattice = true;
-                                        geometryInfo = {
-                                            positions: beamGeometry.positions,
-                                            indices: null,
-                                            triangleProperties: [],
-                                            vertexCount: beamGeometry.vertexCount,
-                                            triangleCount: beamGeometry.triangleCount,
-                                            isBeamLattice: true,
-                                            beamLattice: beamLatticeInfo,
-                                            nodePositions,
-                                        };
-                                    }
                                 }
+                                geometryInfo.nodePositions = nodePositions;
                             }
                         }
 
@@ -2193,19 +2202,28 @@ export class Lib3mfEngine {
             const flatPosition = new Float32Array(totalVertices * 3);
             const flatColor = new Float32Array(totalVertices * 3);
             const flatUV = new Float32Array(totalVertices * 2);
-            const flatResourceId = new Float32Array(totalVertices); // Resource ID per vertex for visibility toggling
+            const flatResourceId = new Float32Array(totalVertices);
+            const flatInstanceId = new Float32Array(totalVertices);
             const beamLinePositions = [];
             const beamLineResourceIds = [];
+            const beamLineInstanceIds = [];
             const beamLineRadii = [];
+            const beamLineCapModes = [];
+            const beamBallPositions = [];
+            const beamBallResourceIds = [];
+            const beamBallInstanceIds = [];
+            const beamBallRadii = [];
 
             // Material/Group tracking
             // We want to group by Texture ID / Material configuration to minimize draw calls in THREE.
             // But flattening implies one big geometry. We can use `geometry.groups`.
             // We need to collect "Draw Tasks" first, then write them to buffer sequentially to keep groups contiguous.
 
-            const drawTasks = []; // { resource, matrix, textureId }
+            const drawTasks = [];
+            const geometryInstances = [];
+            let nextInstanceId = 1;
 
-            const collectDrawTasks = (resourceId, matrix, visited = new Set()) => {
+            const collectDrawTasks = (resourceId, matrix, context, visited = new Set()) => {
                 if (meshResources.has(resourceId)) {
                     const resource = meshResources.get(resourceId);
                     // Determine texture ID
@@ -2220,10 +2238,26 @@ export class Lib3mfEngine {
                         }
                     }
 
+                    const instanceId = nextInstanceId;
+                    nextInstanceId += 1;
+                    const instance = {
+                        instanceId,
+                        visibilityId: `instance:${context.instanceKey}`,
+                        instanceKey: context.instanceKey,
+                        resourceId: resource.resourceId ?? null,
+                        buildItemIndex: context.buildItemIndex,
+                        componentPath: context.componentPath,
+                        bounds: {
+                            min: { x: Infinity, y: Infinity, z: Infinity },
+                            max: { x: -Infinity, y: -Infinity, z: -Infinity },
+                        },
+                    };
+                    geometryInstances.push(instance);
                     drawTasks.push({
                         resource,
                         matrix,
-                        textureId: textureId ?? null
+                        textureId: textureId ?? null,
+                        instance,
                     });
                     return;
                 }
@@ -2248,7 +2282,22 @@ export class Lib3mfEngine {
                             // If mat4Multiply(a, b) computes b * a ...
                             // Then I want mat4Multiply(M_child, M_parent) -> M_parent * M_child.
                             // Correct.
-                            collectDrawTasks(comp.targetId, mat4Multiply(localMat, matrix), visited);
+                            collectDrawTasks(
+                                comp.targetId,
+                                mat4Multiply(localMat, matrix),
+                                {
+                                    ...context,
+                                    instanceKey: `${context.instanceKey}-${comp.index}`,
+                                    componentPath: [
+                                        ...(context.componentPath || []),
+                                        {
+                                            resourceId,
+                                            componentIndex: comp.index,
+                                        },
+                                    ],
+                                },
+                                visited
+                            );
                         }
                     }
                     visited.delete(resourceId);
@@ -2257,7 +2306,11 @@ export class Lib3mfEngine {
 
             items.forEach(item => {
                 const itemMat = item.transform ? mat4From3mf(item.transform) : mat4Identity();
-                collectDrawTasks(item.resourceId, itemMat);
+                collectDrawTasks(item.resourceId, itemMat, {
+                    buildItemIndex: item.index,
+                    instanceKey: `item-${item.index}`,
+                    componentPath: [],
+                });
             });
 
             // Sort tasks by texture ID to form contiguous groups
@@ -2296,7 +2349,7 @@ export class Lib3mfEngine {
             flatColor.fill(1.0);
 
             for (const task of drawTasks) {
-                const { resource, matrix, textureId } = task;
+                const { resource, matrix, textureId, instance } = task;
 
                 if (textureId !== currentTextureId) {
                     startGroup(textureId);
@@ -2338,9 +2391,39 @@ export class Lib3mfEngine {
                             tp1.x, tp1.y, tp1.z
                         );
                         const resId = resource.resourceId ?? 0;
-                        beamLineResourceIds.push(resId, resId);
-                        const avgRadius = (beam.radii[0] + beam.radii[1]) * 0.5;
-                        beamLineRadii.push(avgRadius);
+                        beamLineResourceIds.push(resId);
+                        beamLineInstanceIds.push(instance.instanceId);
+                        beamLineRadii.push(beam.radii[0], beam.radii[1]);
+                        beamLineCapModes.push(
+                            beam.capModes[0] === "sphere" ? 1 : beam.capModes[0] === "hemisphere" ? 2 : 0,
+                            beam.capModes[1] === "sphere" ? 1 : beam.capModes[1] === "hemisphere" ? 2 : 0
+                        );
+
+                        const maxRadius = Math.max(beam.radii[0], beam.radii[1]);
+                        [tp0, tp1].forEach((point) => {
+                            instance.bounds.min.x = Math.min(instance.bounds.min.x, point.x - maxRadius);
+                            instance.bounds.min.y = Math.min(instance.bounds.min.y, point.y - maxRadius);
+                            instance.bounds.min.z = Math.min(instance.bounds.min.z, point.z - maxRadius);
+                            instance.bounds.max.x = Math.max(instance.bounds.max.x, point.x + maxRadius);
+                            instance.bounds.max.y = Math.max(instance.bounds.max.y, point.y + maxRadius);
+                            instance.bounds.max.z = Math.max(instance.bounds.max.z, point.z + maxRadius);
+                        });
+                    }
+
+                    for (const ball of resource.beamLattice.balls || []) {
+                        const point = getNode(ball.index);
+                        const transformed = applyMat4ToPoint(matrix, point.x, point.y, point.z);
+                        const radius = Math.max(0, ball.radius);
+                        beamBallPositions.push(transformed.x, transformed.y, transformed.z);
+                        beamBallResourceIds.push(resource.resourceId ?? 0);
+                        beamBallInstanceIds.push(instance.instanceId);
+                        beamBallRadii.push(radius);
+                        instance.bounds.min.x = Math.min(instance.bounds.min.x, transformed.x - radius);
+                        instance.bounds.min.y = Math.min(instance.bounds.min.y, transformed.y - radius);
+                        instance.bounds.min.z = Math.min(instance.bounds.min.z, transformed.z - radius);
+                        instance.bounds.max.x = Math.max(instance.bounds.max.x, transformed.x + radius);
+                        instance.bounds.max.y = Math.max(instance.bounds.max.y, transformed.y + radius);
+                        instance.bounds.max.z = Math.max(instance.bounds.max.z, transformed.z + radius);
                     }
                 }
 
@@ -2357,20 +2440,12 @@ export class Lib3mfEngine {
                     // Then just copy/lookup color/uv.
 
                     let v0, v1, v2;
-                    if (isBeamLattice) {
-                        // Beam lattice: positions are already expanded, no indices
-                        const srcOff = t * 9;
-                        v0 = applyMat4ToPoint(matrix, posSrc[srcOff + 0], posSrc[srcOff + 1], posSrc[srcOff + 2]);
-                        v1 = applyMat4ToPoint(matrix, posSrc[srcOff + 3], posSrc[srcOff + 4], posSrc[srcOff + 5]);
-                        v2 = applyMat4ToPoint(matrix, posSrc[srcOff + 6], posSrc[srcOff + 7], posSrc[srcOff + 8]);
-                    } else {
-                        const idx0 = indices[t * 3 + 0];
-                        const idx1 = indices[t * 3 + 1];
-                        const idx2 = indices[t * 3 + 2];
-                        v0 = applyMat4ToPoint(matrix, posSrc[idx0 * 3], posSrc[idx0 * 3 + 1], posSrc[idx0 * 3 + 2]);
-                        v1 = applyMat4ToPoint(matrix, posSrc[idx1 * 3], posSrc[idx1 * 3 + 1], posSrc[idx1 * 3 + 2]);
-                        v2 = applyMat4ToPoint(matrix, posSrc[idx2 * 3], posSrc[idx2 * 3 + 1], posSrc[idx2 * 3 + 2]);
-                    }
+                    const idx0 = indices[t * 3 + 0];
+                    const idx1 = indices[t * 3 + 1];
+                    const idx2 = indices[t * 3 + 2];
+                    v0 = applyMat4ToPoint(matrix, posSrc[idx0 * 3], posSrc[idx0 * 3 + 1], posSrc[idx0 * 3 + 2]);
+                    v1 = applyMat4ToPoint(matrix, posSrc[idx1 * 3], posSrc[idx1 * 3 + 1], posSrc[idx1 * 3 + 2]);
+                    v2 = applyMat4ToPoint(matrix, posSrc[idx2 * 3], posSrc[idx2 * 3 + 1], posSrc[idx2 * 3 + 2]);
 
                     const offset = vertexCursor * 3;
                     flatPosition[offset + 0] = v0.x; flatPosition[offset + 1] = v0.y; flatPosition[offset + 2] = v0.z;
@@ -2406,6 +2481,18 @@ export class Lib3mfEngine {
                     flatResourceId[vertexCursor + 0] = resId;
                     flatResourceId[vertexCursor + 1] = resId;
                     flatResourceId[vertexCursor + 2] = resId;
+                    flatInstanceId[vertexCursor + 0] = instance.instanceId;
+                    flatInstanceId[vertexCursor + 1] = instance.instanceId;
+                    flatInstanceId[vertexCursor + 2] = instance.instanceId;
+
+                    [v0, v1, v2].forEach((point) => {
+                        instance.bounds.min.x = Math.min(instance.bounds.min.x, point.x);
+                        instance.bounds.min.y = Math.min(instance.bounds.min.y, point.y);
+                        instance.bounds.min.z = Math.min(instance.bounds.min.z, point.z);
+                        instance.bounds.max.x = Math.max(instance.bounds.max.x, point.x);
+                        instance.bounds.max.y = Math.max(instance.bounds.max.y, point.y);
+                        instance.bounds.max.z = Math.max(instance.bounds.max.z, point.z);
+                    });
 
                     vertexCursor += 3;
                     groupCount += 3;
@@ -2414,18 +2501,39 @@ export class Lib3mfEngine {
             // Close final group
             startGroup(undefined);
 
+            geometryInstances.forEach((instance) => {
+                const { min, max } = instance.bounds;
+                instance.bounds.size = {
+                    x: max.x - min.x,
+                    y: max.y - min.y,
+                    z: max.z - min.z,
+                };
+            });
+            counts.meshes = geometryInstances.length;
+
             const geometry = {
                 positions: flatPosition,
                 colors: flatColor,
                 uvs: flatUV,
                 resourceIds: flatResourceId,
+                instanceIds: flatInstanceId,
+                instances: geometryInstances,
                 groups,
                 vertexCount: vertexCursor,
                 beamLines: beamLinePositions.length
                     ? {
                         positions: new Float32Array(beamLinePositions),
                         resourceIds: new Float32Array(beamLineResourceIds),
+                        instanceIds: new Float32Array(beamLineInstanceIds),
                         radii: new Float32Array(beamLineRadii),
+                        capModes: new Uint8Array(beamLineCapModes),
+                        ballPositions: new Float32Array(beamBallPositions),
+                        ballResourceIds: new Float32Array(beamBallResourceIds),
+                        ballInstanceIds: new Float32Array(beamBallInstanceIds),
+                        ballRadii: new Float32Array(beamBallRadii),
+                        renderMode: this.options?.beamLatticeLinesOnly === true
+                            ? "centerlines"
+                            : "solid",
                     }
                     : null,
             };

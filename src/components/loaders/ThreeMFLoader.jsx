@@ -3,6 +3,7 @@ import * as THREE from "three";
 import lib3mf from "@3mfconsortium/lib3mf";
 
 import { ThreeMFLoaderContext } from "./ThreeMFLoaderContext.js";
+import { createBeamLatticeGroup } from "../../lib/beamLatticeGeometry.js";
 
 const DEFAULT_PALETTE = [
   "#38bdf8",
@@ -70,6 +71,10 @@ export function ThreeMFLoaderProvider({ children }) {
         workerRef.current.terminate();
         workerRef.current = null;
       }
+      pending.forEach((load) => {
+        clearTimeout(load.timeoutId);
+        load.reject(new Error("3MF loader was disposed."));
+      });
       pending.clear();
     };
   }, []);
@@ -331,7 +336,17 @@ export function ThreeMFLoaderProvider({ children }) {
 
       // --- Consuming Flat Geometry from Worker ---
       if (parsed.geometry) {
-        const { positions, colors, uvs, resourceIds, groups, vertexCount, beamLines } = parsed.geometry;
+        const {
+          positions,
+          colors,
+          uvs,
+          resourceIds,
+          instanceIds,
+          instances = [],
+          groups,
+          vertexCount,
+          beamLines,
+        } = parsed.geometry;
 
         if (vertexCount > 0) {
           const matCache = new Map(); // textureId/mode -> material
@@ -339,7 +354,8 @@ export function ThreeMFLoaderProvider({ children }) {
           const getMaterial = (textureId, options = {}) => {
             const vertexColorsEnabled = !!options.vertexColors;
             const solidColor = options.color || "#ffffff";
-            const key = `${textureId ?? "none"}::${vertexColorsEnabled ? "vc" : `solid:${solidColor}`}`;
+            const beamShell = !!options.beamShell;
+            const key = `${textureId ?? "none"}::${vertexColorsEnabled ? "vc" : `solid:${solidColor}`}::${beamShell ? "beam-shell" : "surface"}`;
             if (matCache.has(key)) return matCache.get(key);
 
             const tex = textureId ? textureMap.get(textureId) : null;
@@ -352,6 +368,10 @@ export function ThreeMFLoaderProvider({ children }) {
               specular: "#111111",
               shininess: 10,
               flatShading: true,
+              transparent: beamShell,
+              opacity: beamShell ? 0.16 : 1,
+              depthWrite: !beamShell,
+              side: beamShell ? THREE.DoubleSide : THREE.FrontSide,
             });
 
             matCache.set(key, material);
@@ -359,16 +379,20 @@ export function ThreeMFLoaderProvider({ children }) {
           };
 
           if (resourceIds?.length) {
+            const instanceMap = new Map(
+              instances.map((instance) => [Number(instance.instanceId), instance])
+            );
             const sourceGroups = groups.length
               ? groups
               : [{ start: 0, count: vertexCount, textureId: null }];
             const buckets = new Map();
 
-            const ensureBucket = (resourceId, textureId) => {
-              const key = `${resourceId ?? "none"}::${textureId ?? "none"}`;
+            const ensureBucket = (resourceId, instanceId, textureId) => {
+              const key = `${instanceId ?? "none"}::${resourceId ?? "none"}::${textureId ?? "none"}`;
               if (!buckets.has(key)) {
                 buckets.set(key, {
                   resourceId,
+                  instanceId,
                   textureId,
                   positions: [],
                   colors: [],
@@ -385,7 +409,8 @@ export function ThreeMFLoaderProvider({ children }) {
 
               for (let vertex = start; vertex + 2 < end; vertex += 3) {
                 const resourceId = Number(resourceIds[vertex]);
-                const bucket = ensureBucket(resourceId, entry.textureId ?? null);
+                const instanceId = instanceIds?.length ? Number(instanceIds[vertex]) : null;
+                const bucket = ensureBucket(resourceId, instanceId, entry.textureId ?? null);
 
                 for (let local = 0; local < 3; local += 1) {
                   const index = vertex + local;
@@ -423,6 +448,7 @@ export function ThreeMFLoaderProvider({ children }) {
               );
 
               const resource = meshResources.get(bucket.resourceId);
+              const instance = instanceMap.get(bucket.instanceId);
               const hasResolvedPerTriangleColor =
                 Number(resource?.materialColorStats?.trianglesWithColor ?? 0) > 0;
               const solidColor = resource?.baseColor
@@ -447,6 +473,7 @@ export function ThreeMFLoaderProvider({ children }) {
                 getMaterial(bucket.textureId, {
                   vertexColors: !bucket.textureId && hasResolvedPerTriangleColor,
                   color: solidColor,
+                  beamShell: resource?.isBeamLattice === true,
                 })
               );
               mesh.castShadow = true;
@@ -455,6 +482,12 @@ export function ThreeMFLoaderProvider({ children }) {
                 resource?.displayName ||
                 `Mesh ${bucket.resourceId ?? group.children.length + 1}`;
               mesh.userData.resourceId = bucket.resourceId;
+              mesh.userData.instanceId = bucket.instanceId;
+              mesh.userData.visibilityId = instance?.visibilityId ?? null;
+              mesh.userData.instanceKey = instance?.instanceKey ?? null;
+              mesh.userData.buildItemIndex = instance?.buildItemIndex ?? null;
+              mesh.userData.componentPath = instance?.componentPath ?? [];
+              mesh.userData.bounds = instance?.bounds ?? null;
               mesh.userData.uniqueResourceId = resource?.uniqueResourceId ?? null;
               mesh.userData.uuid = resource?.uuid ?? null;
               mesh.userData.hasUUID = resource?.hasUUID ?? false;
@@ -499,130 +532,7 @@ export function ThreeMFLoaderProvider({ children }) {
         }
 
         if (beamLines?.positions?.length) {
-          const lineCount = beamLines.positions.length / 6;
-          const vertCount = lineCount * 4;
-          const idxCount = lineCount * 6;
-          const startAttr = new Float32Array(vertCount * 3);
-          const endAttr = new Float32Array(vertCount * 3);
-          const sideAttr = new Float32Array(vertCount);
-          const alongAttr = new Float32Array(vertCount);
-          const resourceAttr = new Float32Array(vertCount);
-          const radiusAttr = new Float32Array(vertCount);
-          const indices = new Uint32Array(idxCount);
-
-          let v = 0;
-          let i = 0;
-          for (let line = 0; line < lineCount; line += 1) {
-            const srcOff = line * 6;
-            const sx = beamLines.positions[srcOff + 0];
-            const sy = beamLines.positions[srcOff + 1];
-            const sz = beamLines.positions[srcOff + 2];
-            const ex = beamLines.positions[srcOff + 3];
-            const ey = beamLines.positions[srcOff + 4];
-            const ez = beamLines.positions[srcOff + 5];
-            const resId = beamLines.resourceIds ? beamLines.resourceIds[line * 2] : 0;
-            const radius = beamLines.radii ? beamLines.radii[line] : 1;
-
-            const writeVertex = (along, side) => {
-              const base = v * 3;
-              startAttr[base + 0] = sx;
-              startAttr[base + 1] = sy;
-              startAttr[base + 2] = sz;
-              endAttr[base + 0] = ex;
-              endAttr[base + 1] = ey;
-              endAttr[base + 2] = ez;
-              sideAttr[v] = side;
-              alongAttr[v] = along;
-              resourceAttr[v] = resId;
-              radiusAttr[v] = radius;
-              v += 1;
-            };
-
-            writeVertex(0, -1);
-            writeVertex(0, 1);
-            writeVertex(1, -1);
-            writeVertex(1, 1);
-
-            const baseIndex = line * 4;
-            indices[i++] = baseIndex + 0;
-            indices[i++] = baseIndex + 2;
-            indices[i++] = baseIndex + 1;
-            indices[i++] = baseIndex + 2;
-            indices[i++] = baseIndex + 3;
-            indices[i++] = baseIndex + 1;
-          }
-
-          const lineGeom = new THREE.BufferGeometry();
-          lineGeom.setAttribute("position", new THREE.BufferAttribute(startAttr, 3));
-          lineGeom.setAttribute("aStart", new THREE.BufferAttribute(startAttr, 3));
-          lineGeom.setAttribute("aEnd", new THREE.BufferAttribute(endAttr, 3));
-          lineGeom.setAttribute("aSide", new THREE.BufferAttribute(sideAttr, 1));
-          lineGeom.setAttribute("aAlong", new THREE.BufferAttribute(alongAttr, 1));
-          lineGeom.setAttribute("virtualResourceId", new THREE.BufferAttribute(resourceAttr, 1));
-          lineGeom.setAttribute("aRadius", new THREE.BufferAttribute(radiusAttr, 1));
-          lineGeom.setIndex(new THREE.BufferAttribute(indices, 1));
-
-          const lineMat = new THREE.ShaderMaterial({
-            transparent: true,
-            depthWrite: false,
-            uniforms: {
-              uResolution: { value: new THREE.Vector2(1, 1) },
-              uLineWidth: { value: 1.5 },
-              uColor: { value: new THREE.Color(0x0f172a) },
-              uOpacity: { value: 0.5 },
-            },
-            vertexShader: `
-              uniform vec2 uResolution;
-              uniform float uLineWidth;
-              attribute vec3 aStart;
-              attribute vec3 aEnd;
-              attribute float aSide;
-              attribute float aAlong;
-              attribute float aRadius;
-
-              void main() {
-                vec4 start = modelViewMatrix * vec4(aStart, 1.0);
-                vec4 end = modelViewMatrix * vec4(aEnd, 1.0);
-                vec4 startClip = projectionMatrix * start;
-                vec4 endClip = projectionMatrix * end;
-
-                vec2 startNdc = startClip.xy / startClip.w;
-                vec2 endNdc = endClip.xy / endClip.w;
-                vec2 delta = endNdc - startNdc;
-                float len = length(delta);
-                vec2 dir = normalize(delta);
-                if (len < 0.0001) {
-                  dir = vec2(1.0, 0.0);
-                }
-                vec2 normal = vec2(-dir.y, dir.x);
-                float width = uLineWidth;
-                float taper = smoothstep(0.08, 0.2, aAlong) * smoothstep(0.08, 0.2, 1.0 - aAlong);
-                vec2 offset = normal * (width / uResolution) * 2.0 * taper;
-
-                vec4 clip = mix(startClip, endClip, aAlong);
-                clip.xy += offset * aSide * clip.w;
-                gl_Position = clip;
-              }
-            `,
-            fragmentShader: `
-              uniform vec3 uColor;
-              uniform float uOpacity;
-              void main() {
-                gl_FragColor = vec4(uColor, uOpacity);
-              }
-            `,
-          });
-
-          const lines = new THREE.Mesh(lineGeom, lineMat);
-          lines.userData.isBeamLatticeLines = true;
-          lines.frustumCulled = false;
-          lines.userData.isBeamLatticeLines = true;
-          lines.renderOrder = 2;
-          lines.onBeforeRender = (renderer) => {
-            const size = renderer.getSize(new THREE.Vector2());
-            lineMat.uniforms.uResolution.value.set(size.x, size.y);
-          };
-          group.add(lines);
+          group.add(createBeamLatticeGroup(beamLines, instances, beamLines.renderMode));
         }
       }
 
@@ -710,6 +620,7 @@ export function ThreeMFLoaderProvider({ children }) {
         meshCount: parsed.meshResources?.length ?? 0,
         meshResources: parsed.meshResources,
         componentResources: parsed.componentResources,
+        instances: parsed.geometry?.instances ?? [],
         sliceStacks: parsed.sliceStacks,
         items: parsed.items
       };

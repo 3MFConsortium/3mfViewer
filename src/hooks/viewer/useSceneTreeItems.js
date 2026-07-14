@@ -9,9 +9,14 @@ export const useSceneTreeItems = (sceneData, sceneObject) =>
       const componentMap = new Map(
         (sceneData.componentResources || []).map((resource) => [resource.resourceId, resource])
       );
+      const instanceMap = new Map(
+        (sceneData.instances || []).map((instance) => [instance.visibilityId, instance])
+      );
 
       const buildMeshNode = (resource, context) => {
         const instanceKey = context.instanceKey ?? String(resource.resourceId);
+        const visibilityId = `instance:${instanceKey}`;
+        const instance = instanceMap.get(visibilityId);
         const id = `mesh-${resource.resourceId}-${instanceKey}`;
         const meta = {
           vertexCount: resource.vertexCount,
@@ -26,6 +31,8 @@ export const useSceneTreeItems = (sceneData, sceneObject) =>
           buildItemIndex: context.buildItemIndex,
           buildItemUuid: context.buildItemUuid ?? null,
           resourceUuid: context.resourceUuid ?? null,
+          bounds: instance?.bounds ?? null,
+          instanceId: instance?.instanceId ?? null,
         };
         if (Array.isArray(context.metadataEntries) && context.metadataEntries.length) {
           meta.metadataEntries = context.metadataEntries;
@@ -40,7 +47,7 @@ export const useSceneTreeItems = (sceneData, sceneObject) =>
         }
         return {
           id,
-          visibilityId: String(resource.resourceId),
+          visibilityId,
           name: resource.displayName || resource.name || `Mesh ${resource.resourceId ?? "?"}`,
           type: "mesh",
           isOpenByDefault: false,

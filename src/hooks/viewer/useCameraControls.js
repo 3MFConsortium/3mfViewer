@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useRef } from "react";
 import * as THREE from "three";
 
+export const calculateFitDistance = (size, verticalFovDegrees, aspect, padding = 1.15) => {
+  const radius = Math.hypot(size.x, size.y, size.z) / 2;
+  if (!Number.isFinite(radius) || radius <= 0) return 0;
+  const verticalFov = THREE.MathUtils.degToRad(verticalFovDegrees);
+  const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * Math.max(aspect, 0.01));
+  const limitingFov = Math.min(verticalFov, horizontalFov);
+  return padding * radius / Math.sin(Math.max(limitingFov / 2, 0.001));
+};
+
 export const useCameraControls = ({
   controlsRef,
   cameraRef,
@@ -32,18 +41,18 @@ export const useCameraControls = ({
 
     const size = box.getSize(new THREE.Vector3());
     const center = box.getCenter(new THREE.Vector3());
-    const maxSize = Math.max(size.x, size.y, size.z);
-    const fitH = maxSize / (2 * Math.atan((Math.PI * camera.fov) / 360));
-    const fitW = fitH / camera.aspect;
-    const distance = 1.2 * Math.max(fitH, fitW);
+    const radius = size.length() / 2;
+    const distance = calculateFitDistance(size, camera.fov, camera.aspect);
+    if (!distance) return;
     const direction = new THREE.Vector3()
       .subVectors(camera.position, controls.target)
-      .normalize();
+    if (direction.lengthSq() < Number.EPSILON) direction.set(1, 0.8, 1);
+    direction.normalize();
 
     controls.target.copy(center);
     camera.position.copy(center).addScaledVector(direction, distance);
-    camera.near = distance / 100;
-    camera.far = distance * 100;
+    camera.near = Math.max(0.001, (distance - radius) / 100);
+    camera.far = Math.max(1000, (distance + radius) * 10);
     camera.updateProjectionMatrix();
     controls.update();
   }, [cameraRef, contentRef, controlsRef]);

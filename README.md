@@ -17,15 +17,18 @@ Then open the dev server URL shown in your terminal (default: http://localhost:5
 - `npm run build` – build a production bundle
 - `npm run preview` – preview the production build locally
 - `npm run test` – run tests (Vitest)
+- `npm run test:run` – run the complete test suite once
+- `npm run test:slices -- path/to/model.3mf` – inspect slice vertices and counts through the WASM API
 - `npm run test:ui` – run tests with UI
 - `npm run lint` – run ESLint
+- `npm run query -- path/to/model.3mf` – print parsed resources, instances, bounds, and diagnostics
 
 ## What this viewer does
 
 - Load `.3mf` files via drag & drop or file picker
 - Render meshes, textures, colors, properties, and metadata
 - View slice stacks with a scrubber
-- Visualize beam lattices (lines or hybrid)
+- Visualize beam lattices as radius-correct solids or diagnostic centerlines
 - Toggle wireframe/edges, grid, ground, lighting, and other preferences
 - Inspect scene tree data and per‑mesh details
 - Embed the viewer in other pages with a lightweight API
@@ -74,8 +77,10 @@ src/
 
 1. The WASM runtime loads (lib3mf).
 2. 3MF is parsed in a web worker when possible.
-3. Results are streamed into the Three.js scene.
+3. Parsed resources are flattened into independently addressable scene instances.
 4. Zustand drives UI + viewer preferences.
+
+The WASM package is intentionally pinned to an exact version. Bulk vector-returning slice APIs are not used; slice vertices are read through indexed scalar accessors.
 
 ## Preferences
 
@@ -88,6 +93,7 @@ Release notes are stored in `src/release-notes.json` and shown in‑app.
 To bump a release:
 1. Update `package.json` version.
 2. Add notes under the same version key in `src/release-notes.json`.
+3. Run `npm run lint`, `npm run test:run`, and `npm run build`.
 
 ## Troubleshooting
 
