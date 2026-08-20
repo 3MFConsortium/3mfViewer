@@ -110,13 +110,13 @@
     const request = async (command, argumentsValue = {}, requestOptions = {}) => {
       await readyPromise;
       const requestId = `viewer-${Date.now()}-${++requestCounter}`;
-      const timeoutMs = requestOptions.timeoutMs || options.commandTimeoutMs || 30_000;
+      const timeoutMs = requestOptions.timeoutMs ?? options.commandTimeoutMs ?? 30_000;
       return new Promise((resolve, reject) => {
-        const timer = window.setTimeout(() => {
+        const timer = timeoutMs > 0 ? window.setTimeout(() => {
           pending.delete(requestId);
           reject(new Error(`Viewer command timed out: ${command}.`));
-        }, timeoutMs);
-        pending.set(requestId, { resolve, reject, timer });
+        }, timeoutMs) : null;
+        pending.set(requestId, { resolve, reject, timer, command });
         try {
           post({
             type: COMMAND_TYPE,
@@ -203,7 +203,7 @@
       getSceneManifest: () => request("scene.getManifest"),
       load: (payload) => {
         if (payload?.url) return api.loadFromUrl(payload.url, payload.name);
-        return request("model.load", payload, { timeoutMs: options.loadTimeoutMs || 120_000 });
+        return request("model.load", payload, { timeoutMs: options.loadTimeoutMs ?? 120_000 });
       },
       sendFile: (file, loadOptions = {}) => {
         const payload = normalizeModelPayload(file, loadOptions.name);

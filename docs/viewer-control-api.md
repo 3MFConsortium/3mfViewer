@@ -88,6 +88,7 @@ const unsubscribe = viewer.on("renderReady", ({ name }) => {
 });
 
 viewer.on("loaded", handler);
+viewer.on("loadProgress", handler);
 viewer.on("stateChanged", handler);
 viewer.on("selectionChanged", handler);
 viewer.on("cameraChanged", handler);
@@ -98,6 +99,11 @@ unsubscribe();
 ```
 
 Constructor callbacks such as `onReady`, `onRequestFile`, `onRenderReady`, and `onError` are also supported.
+
+`loadProgress` includes the current parser or scene-building stage, resource and
+triangle counters when available, and a heartbeat timestamp. Integrations can
+show progress without imposing a total model-loading deadline. Set
+`loadTimeoutMs: 0` when creating the embed to disable that deadline.
 
 ## Wire protocol
 

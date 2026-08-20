@@ -97,11 +97,7 @@ export function ThreeMFLoaderProvider({ children }) {
       try {
         reportStage("parsing-3mf", "Parsing 3MF with lib3mf");
         parsed = await new Promise((resolve, reject) => {
-          const timeoutId = window.setTimeout(() => {
-            pendingLoadsRef.current.delete(id);
-            reject(new Error("Worker timed out."));
-          }, 30000);
-          pendingLoadsRef.current.set(id, { resolve, reject, timeoutId });
+          pendingLoadsRef.current.set(id, { resolve, reject, timeoutId: null });
 
           const workerBuffer = arrayBuffer.slice(0);
           worker.postMessage(

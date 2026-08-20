@@ -1,4 +1,8 @@
 {
+  "0.32.1": [
+    "Removed geometry-dependent worker and embed loading deadlines so complex valid models can finish naturally",
+    "Added loadProgress events with parser stages, resource and triangle counters, and a loading heartbeat for external integrations"
+  ],
   "0.32.0": [
     "Added a versioned, Promise-based viewer control API for loading models, querying state, inspecting compact scene manifests, and receiving lifecycle events",
     "Added deterministic scene selection, highlighting, visibility, isolation, camera presets, targeted fitting, render controls, slice navigation, and PNG capture",

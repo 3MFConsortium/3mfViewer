@@ -330,6 +330,8 @@ function ViewerApp() {
     loadStatus,
     renderReady,
     loadedName,
+    loadProgress,
+    loadStage,
     selectedNodeInfo,
     prefs,
     controller: viewerController,

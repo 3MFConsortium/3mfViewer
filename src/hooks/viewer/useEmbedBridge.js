@@ -12,6 +12,8 @@ export const useEmbedBridge = ({
   loadStatus,
   renderReady,
   loadedName,
+  loadProgress,
+  loadStage,
   selectedNodeInfo,
   prefs,
   controller,
@@ -133,6 +135,24 @@ export const useEmbedBridge = ({
       postEvent("renderReady", { name: loadedName || null });
     }
   }, [embedConfig.enabled, loadStatus, loadedName, postEvent, renderReady]);
+
+  useEffect(() => {
+    if (!embedConfig.enabled || loadStatus !== "loading") return undefined;
+    const notify = () => postEvent("loadProgress", {
+      name: loadedName || null,
+      stage: loadStage?.stage || null,
+      detail: loadStage?.detail || null,
+      triangles: loadProgress?.triangles ?? null,
+      totalTriangles: loadProgress?.totalTriangles ?? null,
+      resourceIndex: loadProgress?.resourceIndex ?? null,
+      resourceTotal: loadProgress?.resourceTotal ?? null,
+      currentResourceName: loadProgress?.currentResourceName ?? null,
+      heartbeatAt: new Date().toISOString(),
+    });
+    notify();
+    const timer = window.setInterval(notify, 2000);
+    return () => window.clearInterval(timer);
+  }, [embedConfig.enabled, loadProgress, loadStage, loadStatus, loadedName, postEvent]);
 
   useEffect(() => {
     if (!embedConfig.enabled) return;
