@@ -22,6 +22,8 @@ export const useSceneTreeItems = (sceneData, sceneObject) =>
           vertexCount: resource.vertexCount,
           triangleCount: resource.triangleCount,
           resourceId: resource.resourceId,
+          internalResourceId: resource.internalResourceId ?? resource.resourceId,
+          modelResourceId: resource.modelResourceId ?? resource.resourceId,
           uniqueResourceId: resource.uniqueResourceId ?? null,
           uuid: resource.uuid ?? null,
           hasUUID: resource.hasUUID ?? false,
@@ -61,6 +63,8 @@ export const useSceneTreeItems = (sceneData, sceneObject) =>
         const id = `group-${resource.resourceId}-${instanceKey}`;
         const meta = {
           resourceId: resource.resourceId,
+          internalResourceId: resource.internalResourceId ?? resource.resourceId,
+          modelResourceId: resource.modelResourceId ?? resource.resourceId,
           uniqueResourceId: resource.uniqueResourceId ?? null,
           uuid: resource.uuid ?? null,
           hasUUID: resource.hasUUID ?? false,
@@ -70,6 +74,8 @@ export const useSceneTreeItems = (sceneData, sceneObject) =>
           components: resource.components?.map((component) => ({
             index: component.index,
             targetId: component.targetId,
+            targetInternalResourceId: component.targetInternalResourceId ?? component.targetId,
+            targetModelResourceId: component.targetModelResourceId ?? component.targetId,
             hasTransform: component.hasTransform,
             transform4x3: component.transform4x3,
             uuid: component.uuid ?? null,
@@ -182,6 +188,12 @@ export const useSceneTreeItems = (sceneData, sceneObject) =>
         if (obj.userData?.resourceId !== undefined) {
           meta.resourceId = obj.userData.resourceId;
         }
+        if (obj.userData?.internalResourceId !== undefined) {
+          meta.internalResourceId = obj.userData.internalResourceId;
+        }
+        if (obj.userData?.modelResourceId !== undefined) {
+          meta.modelResourceId = obj.userData.modelResourceId;
+        }
         if (obj.userData?.uniqueResourceId !== undefined) {
           meta.uniqueResourceId = obj.userData.uniqueResourceId;
         }
@@ -222,6 +234,12 @@ export const useSceneTreeItems = (sceneData, sceneObject) =>
         meta.childCount = children.length;
         if (obj.userData?.resourceId !== undefined) {
           meta.resourceId = obj.userData.resourceId;
+        }
+        if (obj.userData?.internalResourceId !== undefined) {
+          meta.internalResourceId = obj.userData.internalResourceId;
+        }
+        if (obj.userData?.modelResourceId !== undefined) {
+          meta.modelResourceId = obj.userData.modelResourceId;
         }
         if (obj.userData?.uniqueResourceId !== undefined) {
           meta.uniqueResourceId = obj.userData.uniqueResourceId;

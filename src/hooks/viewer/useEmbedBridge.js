@@ -1,99 +1,97 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
+import {
+  VIEWER_MESSAGE_TYPES,
+  createViewerEvent,
+  createViewerResult,
+  validateViewerSession,
+} from "../../lib/viewerControlProtocol.js";
 
 export const useEmbedBridge = ({
   embedConfig,
   sceneObject,
-  loadFromArrayBuffer,
-  clearScene,
-  handleFit,
-  handleResetView,
-  decodeBase64ToArrayBuffer,
+  loadStatus,
+  renderReady,
+  loadedName,
+  selectedNodeInfo,
+  prefs,
+  controller,
+  controlsRef,
+  getCameraState,
   embedReadyRef,
   embedSrcLoadedRef,
 }) => {
+  const lastStateEventRef = useRef(null);
+  const allowedOrigin = embedConfig.origin;
+  const allowAny = !allowedOrigin || allowedOrigin === "*";
+  const targetOrigin = allowAny ? "*" : allowedOrigin;
+  const token = embedConfig.token;
+
+  const postToParent = useCallback((payload, explicitOrigin = targetOrigin) => {
+    if (!window.parent || window.parent === window) return;
+    window.parent.postMessage(payload, explicitOrigin);
+  }, [targetOrigin]);
+
+  const postEvent = useCallback((event, data) => {
+    postToParent(createViewerEvent({ event, token, data }));
+  }, [postToParent, token]);
+
   useEffect(() => {
     if (!embedConfig.enabled) return undefined;
-    const allowedOrigin = embedConfig.origin;
-    const allowAny = !allowedOrigin || allowedOrigin === "*";
-    const targetOrigin = allowAny ? "*" : allowedOrigin;
-    const isParentFrame = () => window.parent && window.parent !== window;
 
-    const postToParent = (payload) => {
-      if (!isParentFrame()) return;
-      window.parent.postMessage(payload, targetOrigin);
-    };
-
-    const loadFromPayload = async (payload) => {
-      if (!payload) return;
-      if (payload.files && Array.isArray(payload.files) && payload.files.length) {
-        const [first] = payload.files;
-        await loadFromPayload({ ...first, name: first.name || payload.name });
-        return;
-      }
-      if (payload.blob instanceof Blob) {
-        const buffer = await payload.blob.arrayBuffer();
-        await loadFromArrayBuffer(buffer, payload.name, { skipExtensionCheck: !payload.name });
-        return;
-      }
-      if (payload.file instanceof File) {
-        const buffer = await payload.file.arrayBuffer();
-        await loadFromArrayBuffer(buffer, payload.file.name);
-        return;
-      }
-      if (payload.arrayBuffer instanceof ArrayBuffer) {
-        await loadFromArrayBuffer(payload.arrayBuffer, payload.name, {
-          skipExtensionCheck: !payload.name,
-        });
-        return;
-      }
-      if (payload.encoding === "base64" && payload.data) {
-        const buffer = decodeBase64ToArrayBuffer(payload.data);
-        await loadFromArrayBuffer(buffer, payload.name, { skipExtensionCheck: !payload.name });
-        return;
-      }
-      if (payload.url) {
-        const response = await fetch(payload.url);
-        if (!response.ok) throw new Error(`Failed to fetch 3MF (${response.status}).`);
-        const buffer = await response.arrayBuffer();
-        const nameFromUrl = payload.name || payload.url.split("/").pop() || "embedded.3mf";
-        await loadFromArrayBuffer(buffer, nameFromUrl, { skipExtensionCheck: !payload.name });
+    const handleLegacyCommand = async (payload) => {
+      switch (payload.type) {
+        case "load":
+        case "append":
+          return controller.execute("model.load", payload);
+        case "clear":
+          return controller.execute("model.clear");
+        case "fitView":
+          return controller.execute("camera.fit");
+        case "resetView":
+          return controller.execute("camera.reset");
+        default:
+          return undefined;
       }
     };
 
     const handleMessage = async (event) => {
       if (!allowAny && event.origin !== allowedOrigin) return;
-      if (isParentFrame() && event.source !== window.parent) return;
-      if (!event.data || typeof event.data !== "object") return;
+      if (window.parent && window.parent !== window && event.source !== window.parent) return;
       const payload = event.data;
-      try {
-        switch (payload.type) {
-          case "load":
-          case "append":
-            await loadFromPayload(payload);
-            break;
-          case "clear":
-            clearScene();
-            break;
-          case "fitView":
-            handleFit();
-            break;
-          case "resetView":
-            handleResetView();
-            break;
-          default:
-            break;
+      if (!payload || typeof payload !== "object") return;
+
+      if (payload.type !== VIEWER_MESSAGE_TYPES.command) {
+        try {
+          await handleLegacyCommand(payload);
+        } catch (error) {
+          postToParent({ type: "error", message: error?.message || "Failed to process embed command." }, event.origin);
         }
-      } catch (err) {
-        postToParent({
-          type: "error",
-          message: err?.message || "Failed to process embed command.",
-        });
+        return;
+      }
+
+      const error = validateViewerSession({
+        payload,
+        allowedOrigin,
+        eventOrigin: event.origin,
+        token,
+      });
+
+      try {
+        if (error) throw error;
+        const result = await controller.execute(payload.command, payload.arguments || {});
+        postToParent(createViewerResult({ requestId: payload.requestId, token, result }), event.origin);
+      } catch (commandError) {
+        postToParent(
+          createViewerResult({ requestId: payload.requestId, token, error: commandError }),
+          event.origin
+        );
       }
     };
 
     window.addEventListener("message", handleMessage);
     if (!embedReadyRef.current) {
       postToParent({ type: "ready" });
+      postEvent("ready", { secureControl: !allowAny && !!token });
       embedReadyRef.current = true;
     }
     const requestTimer = window.setTimeout(() => {
@@ -105,15 +103,61 @@ export const useEmbedBridge = ({
       window.removeEventListener("message", handleMessage);
     };
   }, [
-    embedConfig,
-    loadFromArrayBuffer,
-    clearScene,
-    handleFit,
-    handleResetView,
-    sceneObject,
-    decodeBase64ToArrayBuffer,
+    allowAny,
+    allowedOrigin,
+    controller,
+    embedConfig.enabled,
     embedReadyRef,
+    postEvent,
+    postToParent,
+    sceneObject,
+    token,
   ]);
+
+  useEffect(() => {
+    if (!embedConfig.enabled) return;
+    const previous = lastStateEventRef.current;
+    const snapshot = { loadStatus, renderReady, loadedName };
+    if (
+      previous &&
+      previous.loadStatus === loadStatus &&
+      previous.renderReady === renderReady &&
+      previous.loadedName === loadedName
+    ) return;
+    lastStateEventRef.current = snapshot;
+    postEvent("stateChanged", { loadStatus, renderReady, loadedName: loadedName || null });
+    if (loadStatus === "ready" && previous?.loadStatus !== "ready") {
+      postEvent("loaded", { name: loadedName || null });
+    }
+    if (renderReady && !previous?.renderReady) {
+      postEvent("renderReady", { name: loadedName || null });
+    }
+  }, [embedConfig.enabled, loadStatus, loadedName, postEvent, renderReady]);
+
+  useEffect(() => {
+    if (!embedConfig.enabled) return;
+    postEvent("selectionChanged", { selected: selectedNodeInfo || null });
+  }, [embedConfig.enabled, postEvent, selectedNodeInfo]);
+
+  useEffect(() => {
+    if (!embedConfig.enabled) return;
+    postEvent("renderOptionsChanged", { prefs });
+  }, [embedConfig.enabled, postEvent, prefs]);
+
+  useEffect(() => {
+    if (!embedConfig.enabled) return undefined;
+    let frame = 0;
+    const notifyCamera = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => postEvent("cameraChanged", getCameraState()));
+    };
+    const controls = controlsRef.current;
+    controls?.addEventListener?.("change", notifyCamera);
+    return () => {
+      cancelAnimationFrame(frame);
+      controls?.removeEventListener?.("change", notifyCamera);
+    };
+  }, [controlsRef, embedConfig.enabled, getCameraState, postEvent, sceneObject]);
 
   useEffect(() => {
     if (!embedConfig.enabled || !embedConfig.src) return;
@@ -123,13 +167,13 @@ export const useEmbedBridge = ({
       try {
         const response = await fetch(embedConfig.src);
         if (!response.ok) throw new Error(`Failed to fetch 3MF (${response.status}).`);
-        const buffer = await response.arrayBuffer();
-        const nameFromUrl = embedConfig.src.split("/").pop() || "embedded.3mf";
-        await loadFromArrayBuffer(buffer, nameFromUrl, { skipExtensionCheck: true });
-      } catch (err) {
-        console.error("Failed to load embed src", err);
+        const blob = await response.blob();
+        const name = embedConfig.src.split("/").pop() || "embedded.3mf";
+        await controller.execute("model.load", { blob, name });
+      } catch (error) {
+        postEvent("error", { message: error?.message || "Failed to load embed source." });
       }
     };
     run();
-  }, [embedConfig, loadFromArrayBuffer, embedSrcLoadedRef]);
+  }, [controller, embedConfig, embedSrcLoadedRef, postEvent]);
 };

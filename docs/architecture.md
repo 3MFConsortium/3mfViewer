@@ -26,6 +26,12 @@ This document captures the moving parts of the 3MF viewer so you can reason abou
    - Floating widgets (toolbar/dock, tips, stats, release notes) respect pointer type to avoid clutter on touch screens.
    - `SceneTree` doubles as both a desktop sidebar and a mobile drawer via the `variant="drawer"` prop.
 
+5. **Viewer Control**
+   - `public/embed.js` creates an authenticated iframe session and exposes Promise-based methods.
+   - `useEmbedBridge` validates origin, frame source, session token, protocol version, and command shape.
+   - `useViewerController` maps protocol commands onto explicit store, camera, loading, and capture operations.
+   - `viewerSceneManifest` returns compact resource and instance data without serialising render buffers.
+
 ## Key Modules
 
 | Location | Purpose |
@@ -35,6 +41,10 @@ This document captures the moving parts of the 3MF viewer so you can reason abou
 | `src/components/scene/SceneContent.jsx` | Handles actual Three.js rendering of the loaded mesh group. |
 | `src/components/ui/BottomControls.jsx` | Toolbar buttons (zoom, fit, toggles). Also used for touch dock with an optional `endCap`. |
 | `src/components/ui/SceneTree.jsx` | Displays object hierarchy and provides a “Load 3MF” CTA. Has desktop panel + mobile drawer modes. |
+| `src/hooks/viewer/useViewerController.js` | Deterministic viewer-control command implementation. |
+| `src/hooks/viewer/useEmbedBridge.js` | Secure iframe request/response and event transport. |
+| `src/lib/viewerControlProtocol.js` | Protocol version, capabilities, validation, results, and errors. |
+| `src/lib/viewerSceneManifest.js` | Compact scene manifest and target resolution. |
 | `src/components/ui/Modal.jsx` | Generic modal with keyboard-close binding (used for preferences/release notes). |
 | `src/App.jsx` | Brains of the viewer—layout, responses to pointer type, gesture registration, and UI wiring. |
 

@@ -103,7 +103,15 @@ function TreeNode({
   const hidden = isMesh ? hiddenMeshIds.includes(visibilityKey) : false;
   const isSelected = selectedId === node.id;
   const tooltipLines = [node.name];
-  if (node.meta?.resourceId !== undefined) tooltipLines.push(`Resource ID: ${node.meta.resourceId}`);
+  if (node.meta?.modelResourceId !== undefined) {
+    tooltipLines.push(`Model resource ID: ${node.meta.modelResourceId}`);
+  }
+  if (
+    node.meta?.internalResourceId !== undefined &&
+    node.meta.internalResourceId !== node.meta?.modelResourceId
+  ) {
+    tooltipLines.push(`Internal resource ID: ${node.meta.internalResourceId}`);
+  }
   if (node.meta?.uniqueResourceId !== undefined) tooltipLines.push(`Unique ID: ${node.meta.uniqueResourceId}`);
   if (node.meta?.uuid) tooltipLines.push(`UUID: ${node.meta.uuid}`);
   const materialRefs = (() => {
@@ -954,6 +962,7 @@ export function SceneTree({
                 const sameNode = selectedNodeId === payload.id;
                 onSelectNode?.({
                   id: payload.id,
+                  visibilityId: payload.visibilityId ?? null,
                   name: payload.name,
                   type: payload.type,
                   meta: payload.meta || {},

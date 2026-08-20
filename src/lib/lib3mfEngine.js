@@ -132,6 +132,26 @@ export class Lib3mfEngine {
         }
     }
 
+    getResourceIdsSafe(subject) {
+        let internalResourceId = null;
+        let modelResourceId = null;
+        try {
+            internalResourceId = subject?.GetResourceID?.() ?? null;
+        } catch (err) {
+            logCatch("getResourceIdsSafe.GetResourceID failed", err);
+        }
+        try {
+            modelResourceId = subject?.GetModelResourceID?.() ?? null;
+        } catch (err) {
+            logCatch("getResourceIdsSafe.GetModelResourceID failed", err);
+        }
+        return {
+            resourceId: internalResourceId,
+            internalResourceId,
+            modelResourceId: modelResourceId ?? internalResourceId,
+        };
+    }
+
     getUUIDSafe(subject) {
         if (!subject || typeof subject !== "object") {
             return { uuid: null, hasUUID: false };
@@ -554,7 +574,8 @@ export class Lib3mfEngine {
             const texture = iterator.GetCurrentTexture2D?.();
             if (!texture) continue;
             try {
-                const textureId = texture.GetResourceID?.();
+                const textureIds = this.getResourceIdsSafe(texture);
+                const textureId = textureIds.resourceId;
                 const uniqueResourceId = texture.GetUniqueResourceID?.();
                 const contentType = texture.GetContentType?.();
                 const tileStyles = texture.GetTileStyleUV?.();
@@ -574,6 +595,8 @@ export class Lib3mfEngine {
 
                 entries.push({
                     textureId,
+                    internalResourceId: textureIds.internalResourceId,
+                    modelResourceId: textureIds.modelResourceId,
                     uniqueResourceId,
                     contentType,
                     tileStyleU: tileStyles?.TileStyleU ?? null,
@@ -600,15 +623,19 @@ export class Lib3mfEngine {
             const group = iterator.GetCurrentTexture2DGroup?.();
             if (!group) continue;
             try {
-                const groupId = group.GetResourceID?.();
+                const groupIds = this.getResourceIdsSafe(group);
+                const groupId = groupIds.resourceId;
                 const uniqueResourceId = group.GetUniqueResourceID?.();
                 const count = group.GetCount?.() ?? 0;
                 let textureId = null;
+                let textureModelResourceId = null;
 
                 const texture = group.GetTexture2D?.();
                 if (texture) {
                     try {
-                        textureId = texture.GetResourceID?.();
+                        const textureIds = this.getResourceIdsSafe(texture);
+                        textureId = textureIds.resourceId;
+                        textureModelResourceId = textureIds.modelResourceId;
                     } finally {
                         safeDelete(texture);
                     }
@@ -659,8 +686,11 @@ export class Lib3mfEngine {
 
                 entries.push({
                     groupId,
+                    internalResourceId: groupIds.internalResourceId,
+                    modelResourceId: groupIds.modelResourceId,
                     uniqueResourceId,
                     textureId,
+                    textureModelResourceId,
                     propertyIds: ids,
                     coords,
                 });
@@ -683,7 +713,8 @@ export class Lib3mfEngine {
                 const stack = iterator.GetCurrentSliceStack?.();
                 if (!stack) continue;
                 try {
-                    const resourceId = stack.GetResourceID?.();
+                    const stackIds = this.getResourceIdsSafe(stack);
+                    const resourceId = stackIds.resourceId;
                     const uniqueResourceId = stack.GetUniqueResourceID?.();
                     const uuidInfo = this.getUUIDSafe(stack);
                     const bottomZValue = stack.GetBottomZ?.();
@@ -704,8 +735,11 @@ export class Lib3mfEngine {
                         if (!reference) continue;
                         try {
                             const refUuid = this.getUUIDSafe(reference);
+                            const referenceIds = this.getResourceIdsSafe(reference);
                             references.push({
-                                resourceId: reference.GetResourceID?.() ?? null,
+                                resourceId: referenceIds.resourceId,
+                                internalResourceId: referenceIds.internalResourceId,
+                                modelResourceId: referenceIds.modelResourceId,
                                 uniqueResourceId: reference.GetUniqueResourceID?.() ?? null,
                                 uuid: refUuid.uuid,
                                 hasUUID: refUuid.hasUUID,
@@ -779,6 +813,8 @@ export class Lib3mfEngine {
 
                     stacks.push({
                         resourceId,
+                        internalResourceId: stackIds.internalResourceId,
+                        modelResourceId: stackIds.modelResourceId,
                         uniqueResourceId,
                         uuid: uuidInfo.uuid,
                         hasUUID: uuidInfo.hasUUID,
@@ -1751,7 +1787,8 @@ export class Lib3mfEngine {
             while (objectIterator?.MoveNext?.()) {
                 const current = objectIterator.GetCurrentObject?.();
                 if (!current) continue;
-                const resourceId = current.GetResourceID?.();
+                const resourceIds = this.getResourceIdsSafe(current);
+                const resourceId = resourceIds.resourceId;
                 const resourceUuidInfo = this.getUUIDSafe(current);
                 const resourceUuid = resourceUuidInfo.uuid;
                 const resourceHasUUID = resourceUuidInfo.hasUUID;
@@ -1831,6 +1868,8 @@ export class Lib3mfEngine {
 
                         meshResources.set(resourceId, {
                             resourceId,
+                            internalResourceId: resourceIds.internalResourceId,
+                            modelResourceId: resourceIds.modelResourceId,
                             uniqueResourceId,
                             displayName,
                             name: rawName,
@@ -1889,6 +1928,8 @@ export class Lib3mfEngine {
                             : `Component ${resourceId ?? componentResources.size + 1}`;
                         componentResources.set(resourceId, {
                             resourceId,
+                            internalResourceId: resourceIds.internalResourceId,
+                            modelResourceId: resourceIds.modelResourceId,
                             uniqueResourceId,
                             displayName,
                             name: rawName,
@@ -1904,6 +1945,19 @@ export class Lib3mfEngine {
             safeDelete(objectIterator);
             objectIterator = null;
 
+            const modelResourceIdByInternalId = new Map();
+            [...meshResources.values(), ...componentResources.values()].forEach((resource) => {
+                modelResourceIdByInternalId.set(resource.resourceId, resource.modelResourceId);
+            });
+            componentResources.forEach((resource) => {
+                resource.components = resource.components.map((component) => ({
+                    ...component,
+                    targetInternalResourceId: component.targetId,
+                    targetModelResourceId:
+                        modelResourceIdByInternalId.get(component.targetId) ?? component.targetId,
+                }));
+            });
+
             if (!meshResources.size && !componentResources.size) {
                 throw new Error("No renderable objects found in 3MF file.");
             }
@@ -1914,13 +1968,16 @@ export class Lib3mfEngine {
                 while (baseGroupIterator.MoveNext()) {
                     const baseGroup = baseGroupIterator.GetCurrentBaseMaterialGroup();
                     try {
-                        const groupId = baseGroup.GetResourceID?.();
+                        const groupIds = this.getResourceIdsSafe(baseGroup);
+                        const groupId = groupIds.resourceId;
                         const uniqueResourceId = baseGroup.GetUniqueResourceID?.();
                         const uuidInfo = this.getUUIDSafe(baseGroup);
                         const materials = this.readBaseMaterialEntries(baseGroup);
                         const count = baseGroup.GetCount?.() ?? materials.length;
                         baseMaterialGroups.push({
                             groupId,
+                            internalResourceId: groupIds.internalResourceId,
+                            modelResourceId: groupIds.modelResourceId,
                             uniqueResourceId,
                             uuid: uuidInfo.uuid,
                             hasUUID: uuidInfo.hasUUID,
@@ -1940,13 +1997,16 @@ export class Lib3mfEngine {
                 while (colorGroupIterator.MoveNext()) {
                     const colorGroup = colorGroupIterator.GetCurrentColorGroup();
                     try {
-                        const groupId = colorGroup.GetResourceID?.();
+                        const groupIds = this.getResourceIdsSafe(colorGroup);
+                        const groupId = groupIds.resourceId;
                         const uniqueResourceId = colorGroup.GetUniqueResourceID?.();
                         const uuidInfo = this.getUUIDSafe(colorGroup);
                         const colors = this.readColorGroupEntries(colorGroup);
                         const count = colorGroup.GetCount?.() ?? colors.length;
                         colorGroups.push({
                             groupId,
+                            internalResourceId: groupIds.internalResourceId,
+                            modelResourceId: groupIds.modelResourceId,
                             uniqueResourceId,
                             uuid: uuidInfo.uuid,
                             hasUUID: uuidInfo.hasUUID,
@@ -2105,7 +2165,8 @@ export class Lib3mfEngine {
 
                     const objectResource = buildItem.GetObjectResource?.();
                     try {
-                        resourceId = objectResource?.GetResourceID?.();
+                        const objectResourceIds = this.getResourceIdsSafe(objectResource);
+                        resourceId = objectResourceIds.resourceId;
                         uniqueResourceId = objectResource?.GetUniqueResourceID?.();
                         const objectUuidInfo = this.getUUIDSafe(objectResource);
                         objectUuid = objectUuidInfo.uuid;
@@ -2141,6 +2202,8 @@ export class Lib3mfEngine {
                         index,
                         type,
                         resourceId,
+                        internalResourceId: resourceId,
+                        modelResourceId: modelResourceIdByInternalId.get(resourceId) ?? resourceId,
                         uniqueResourceId,
                         objectUUID: objectUuid,
                         objectHasUUID,
@@ -2245,6 +2308,8 @@ export class Lib3mfEngine {
                         visibilityId: `instance:${context.instanceKey}`,
                         instanceKey: context.instanceKey,
                         resourceId: resource.resourceId ?? null,
+                        internalResourceId: resource.internalResourceId ?? resource.resourceId ?? null,
+                        modelResourceId: resource.modelResourceId ?? resource.resourceId ?? null,
                         buildItemIndex: context.buildItemIndex,
                         componentPath: context.componentPath,
                         bounds: {

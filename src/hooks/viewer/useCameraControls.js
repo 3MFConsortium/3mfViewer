@@ -30,13 +30,10 @@ export const useCameraControls = ({
     controlsRef.current?.dollyIn(DOLLY_STEP);
   }, [controlsRef]);
 
-  const handleFit = useCallback(() => {
+  const fitBox = useCallback((box, requestedDirection = null) => {
     const controls = controlsRef.current;
     const camera = cameraRef.current;
-    const content = contentRef.current;
-    if (!controls || !camera || !content) return;
-
-    const box = new THREE.Box3().setFromObject(content);
+    if (!controls || !camera || !box) return false;
     if (box.isEmpty()) return;
 
     const size = box.getSize(new THREE.Vector3());
@@ -44,8 +41,9 @@ export const useCameraControls = ({
     const radius = size.length() / 2;
     const distance = calculateFitDistance(size, camera.fov, camera.aspect);
     if (!distance) return;
-    const direction = new THREE.Vector3()
-      .subVectors(camera.position, controls.target)
+    const direction = requestedDirection
+      ? requestedDirection.clone()
+      : new THREE.Vector3().subVectors(camera.position, controls.target);
     if (direction.lengthSq() < Number.EPSILON) direction.set(1, 0.8, 1);
     direction.normalize();
 
@@ -55,7 +53,29 @@ export const useCameraControls = ({
     camera.far = Math.max(1000, (distance + radius) * 10);
     camera.updateProjectionMatrix();
     controls.update();
-  }, [cameraRef, contentRef, controlsRef]);
+    return true;
+  }, [cameraRef, controlsRef]);
+
+  const getTargetBox = useCallback((visibilityIds = []) => {
+    const content = contentRef.current;
+    if (!content) return null;
+    const requested = new Set((visibilityIds || []).map(String));
+    if (requested.size === 0) return new THREE.Box3().setFromObject(content);
+    const box = new THREE.Box3();
+    let matched = false;
+    content.traverse((child) => {
+      if (!child.isMesh && !child.isLineSegments) return;
+      if (!requested.has(String(child.userData?.visibilityId))) return;
+      box.union(new THREE.Box3().setFromObject(child));
+      matched = true;
+    });
+    return matched ? box : null;
+  }, [contentRef]);
+
+  const handleFit = useCallback((visibilityIds = []) => {
+    const box = getTargetBox(Array.isArray(visibilityIds) ? visibilityIds : []);
+    return fitBox(box);
+  }, [fitBox, getTargetBox]);
 
   const handleResetView = useCallback(() => {
     const controls = controlsRef.current;
@@ -68,6 +88,62 @@ export const useCameraControls = ({
     camera.updateProjectionMatrix();
     controls.update();
   }, [cameraRef, controlsRef]);
+
+  const getCameraState = useCallback(() => {
+    const controls = controlsRef.current;
+    const camera = cameraRef.current;
+    if (!controls || !camera) return null;
+    return {
+      position: camera.position.toArray(),
+      target: controls.target.toArray(),
+      up: camera.up.toArray(),
+      fov: camera.fov,
+      near: camera.near,
+      far: camera.far,
+    };
+  }, [cameraRef, controlsRef]);
+
+  const setCameraState = useCallback((state = {}) => {
+    const controls = controlsRef.current;
+    const camera = cameraRef.current;
+    if (!controls || !camera) return false;
+    const setVector = (target, value) => {
+      if (!Array.isArray(value) || value.length !== 3) return;
+      const numbers = value.map(Number);
+      if (numbers.every(Number.isFinite)) target.fromArray(numbers);
+    };
+    setVector(camera.position, state.position);
+    setVector(controls.target, state.target);
+    setVector(camera.up, state.up);
+    if (Number.isFinite(Number(state.fov))) camera.fov = Math.min(150, Math.max(1, Number(state.fov)));
+    if (Number.isFinite(Number(state.near))) camera.near = Math.max(0.0001, Number(state.near));
+    if (Number.isFinite(Number(state.far))) camera.far = Math.max(camera.near + 1, Number(state.far));
+    camera.far = Math.max(camera.near + 1, camera.far);
+    camera.updateProjectionMatrix();
+    controls.update();
+    return true;
+  }, [cameraRef, controlsRef]);
+
+  const setPresetView = useCallback((preset, visibilityIds = []) => {
+    const directions = {
+      front: new THREE.Vector3(0, 0, 1),
+      back: new THREE.Vector3(0, 0, -1),
+      left: new THREE.Vector3(-1, 0, 0),
+      right: new THREE.Vector3(1, 0, 0),
+      top: new THREE.Vector3(0, 1, 0),
+      bottom: new THREE.Vector3(0, -1, 0),
+      isometric: new THREE.Vector3(1, 1, 1),
+    };
+    const direction = directions[preset];
+    if (!direction) return false;
+    const camera = cameraRef.current;
+    if (camera) {
+      camera.up.set(0, 1, 0);
+      if (preset === "top") camera.up.set(0, 0, -1);
+      if (preset === "bottom") camera.up.set(0, 0, 1);
+    }
+    return fitBox(getTargetBox(visibilityIds), direction);
+  }, [cameraRef, fitBox, getTargetBox]);
 
   const panByPixels = useCallback(
     (dxPx, dyPx) => {
@@ -148,6 +224,9 @@ export const useCameraControls = ({
     handleZoomOut,
     handleFit,
     handleResetView,
+    getCameraState,
+    setCameraState,
+    setPresetView,
     panLeft,
     panRight,
     panUp,

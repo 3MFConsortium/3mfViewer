@@ -29,7 +29,10 @@ import { ViewerLayout } from "./ViewerLayout.jsx";
 import { getSceneBounds, getSliceMax, formatElapsed } from "./sceneMeta.js";
 import { useViewerControls } from "../hooks/viewer/useViewerControls.js";
 import { useCameraControls } from "../hooks/viewer/useCameraControls.js";
+import { useViewerController } from "../hooks/viewer/useViewerController.js";
 import { getStatusMeta } from "./statusMeta.js";
+import { createBeamLatticeGroup } from "../lib/beamLatticeGeometry.js";
+import { disposeThreeObject } from "../lib/disposeThreeObject.js";
 
 function ViewerApp() {
   const { load3mf, ensureLib3mf } = useThreeMFLoader();
@@ -84,6 +87,9 @@ function ViewerApp() {
   const isEmbedTransparent = isEmbedQuick && embedConfig.transparent;
   const hiddenMeshIds = useViewerStore((state) => state.selection.hiddenMeshIds);
   const toggleMeshVisibility = useViewerStore((state) => state.toggleMeshVisibility);
+  const setMeshVisibility = useViewerStore((state) => state.setMeshVisibility);
+  const isolateMeshIds = useViewerStore((state) => state.isolateMeshIds);
+  const resetVisibility = useViewerStore((state) => state.resetVisibility);
   const selectedNodeId = useViewerStore((state) => state.selection.selectedNodeId);
   const selectedNodeInfo = useViewerStore((state) => state.selection.selectedNodeInfo);
   const setSelectedNode = useViewerStore((state) => state.setSelectedNode);
@@ -160,6 +166,23 @@ function ViewerApp() {
   useSliceView(sceneObject, prefs.sliceIndex, sliceMax, prefs.sliceOverview);
 
   useEffect(() => {
+    const source = sceneObject?.userData?.beamLatticeSource;
+    if (!source?.beamLines) return;
+    const current = sceneObject.children.find(
+      (child) => child.userData?.isBeamLatticeRenderRoot
+    );
+    if (current?.userData?.renderMode === prefs.beamLatticeMode) return;
+    if (current) {
+      sceneObject.remove(current);
+      disposeThreeObject(current);
+    }
+    sceneObject.add(
+      createBeamLatticeGroup(source.beamLines, source.instances, prefs.beamLatticeMode)
+    );
+    sceneObject.updateMatrixWorld(true);
+  }, [prefs.beamLatticeMode, sceneObject]);
+
+  useEffect(() => {
     if (loadStatus !== "ready" || !sceneObject) return;
     if (initializedSliceSceneRef.current === sceneObject) return;
     initializedSliceSceneRef.current = sceneObject;
@@ -226,6 +249,9 @@ function ViewerApp() {
     handleZoomOut,
     handleFit,
     handleResetView,
+    getCameraState,
+    setCameraState,
+    setPresetView,
     panLeft,
     panRight,
     panUp,
@@ -239,14 +265,76 @@ function ViewerApp() {
     loadStatus,
   });
 
+  const capturePng = useCallback(async (options = {}) => {
+    const renderer = rendererRef.current;
+    if (!renderer?.domElement) throw new Error("The renderer is not ready.");
+    const source = renderer.domElement;
+    const requestedWidth = Number(options.width);
+    const requestedHeight = Number(options.height);
+    const width = Number.isInteger(requestedWidth)
+      ? Math.min(4096, Math.max(1, requestedWidth))
+      : source.width;
+    const height = Number.isInteger(requestedHeight)
+      ? Math.min(4096, Math.max(1, requestedHeight))
+      : source.height;
+    if (width * height > 16_777_216) {
+      throw new Error("PNG capture is limited to 16,777,216 pixels.");
+    }
+    const canvas = width === source.width && height === source.height
+      ? source
+      : Object.assign(document.createElement("canvas"), { width, height });
+    if (canvas !== source) {
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Unable to create a PNG capture surface.");
+      context.drawImage(source, 0, 0, width, height);
+    }
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob(
+        (value) => value ? resolve(value) : reject(new Error("PNG encoding failed.")),
+        "image/png"
+      );
+    });
+    return { blob, width, height, mimeType: "image/png" };
+  }, []);
+
+  const viewerController = useViewerController({
+    treeItems,
+    sceneData,
+    sceneBounds,
+    loadedName,
+    loadStatus,
+    renderReady,
+    prefs,
+    hiddenMeshIds,
+    selectedNodeId,
+    selectedNodeInfo,
+    loadFromArrayBuffer,
+    decodeBase64ToArrayBuffer,
+    clearScene,
+    setSelectedNode,
+    setMeshVisibility,
+    isolateMeshIds,
+    resetVisibility,
+    setPrefs,
+    handleFit,
+    handleResetView,
+    getCameraState,
+    setCameraState,
+    setPresetView,
+    capturePng,
+  });
+
   useEmbedBridge({
     embedConfig,
     sceneObject,
-    loadFromArrayBuffer,
-    clearScene,
-    handleFit,
-    handleResetView,
-    decodeBase64ToArrayBuffer,
+    loadStatus,
+    renderReady,
+    loadedName,
+    selectedNodeInfo,
+    prefs,
+    controller: viewerController,
+    controlsRef,
+    getCameraState,
     embedReadyRef,
     embedSrcLoadedRef,
   });
@@ -263,22 +351,22 @@ function ViewerApp() {
 
   // screenshot
   const handleScreenshot = useCallback(() => {
-    const r = rendererRef.current;
-    if (!r) return;
-    requestAnimationFrame(() => {
+    requestAnimationFrame(async () => {
       try {
-        const url = r.domElement.toDataURL("image/png");
+        const { blob } = await capturePng();
+        const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
         a.download = `threemfviewer_${Date.now()}.png`;
         document.body.appendChild(a);
         a.click();
         a.remove();
+        URL.revokeObjectURL(url);
       } catch (e) {
         console.error("Screenshot failed", e);
       }
     });
-  }, []);
+  }, [capturePng]);
 
   const showSceneTree = showScene && prefs.uiSceneTree && !isEmbedQuick;
   const showBottomBar = showScene && prefs.uiBottomControls && !isEmbedQuick;

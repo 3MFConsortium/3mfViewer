@@ -482,6 +482,8 @@ export function ThreeMFLoaderProvider({ children }) {
                 resource?.displayName ||
                 `Mesh ${bucket.resourceId ?? group.children.length + 1}`;
               mesh.userData.resourceId = bucket.resourceId;
+              mesh.userData.internalResourceId = resource?.internalResourceId ?? bucket.resourceId;
+              mesh.userData.modelResourceId = resource?.modelResourceId ?? bucket.resourceId;
               mesh.userData.instanceId = bucket.instanceId;
               mesh.userData.visibilityId = instance?.visibilityId ?? null;
               mesh.userData.instanceKey = instance?.instanceKey ?? null;
@@ -532,6 +534,7 @@ export function ThreeMFLoaderProvider({ children }) {
         }
 
         if (beamLines?.positions?.length) {
+          group.userData.beamLatticeSource = { beamLines, instances };
           group.add(createBeamLatticeGroup(beamLines, instances, beamLines.renderMode));
         }
       }

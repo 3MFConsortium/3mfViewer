@@ -5,6 +5,7 @@ export const parseEmbedConfig = () => {
       mode: null,
       src: null,
       origin: null,
+      token: null,
       transparent: false,
     };
   }
@@ -16,6 +17,7 @@ export const parseEmbedConfig = () => {
       mode: null,
       src: null,
       origin: null,
+      token: null,
       transparent: false,
     };
   }
@@ -42,11 +44,14 @@ export const parseEmbedConfig = () => {
   }
   const transparentValue = params.get("transparent");
   const transparent = transparentValue === "1" || transparentValue === "true";
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const token = hashParams.get("viewerToken") || params.get("viewerToken") || null;
   return {
     enabled: true,
     mode: normalized,
     src,
     origin,
+    token,
     transparent,
   };
 };

@@ -316,6 +316,41 @@ const initializer = (set) => ({
         selection: { ...state.selection, hiddenMeshIds: Array.from(hidden) },
       };
     }),
+  setMeshVisibility: (meshId, visible) =>
+    set((state) => {
+      if (meshId === null || meshId === undefined || meshId === "") return {};
+      const key = String(meshId);
+      const hidden = new Set(state.selection.hiddenMeshIds.map(String));
+      if (visible) hidden.delete(key);
+      else hidden.add(key);
+      return {
+        selection: { ...state.selection, hiddenMeshIds: Array.from(hidden) },
+      };
+    }),
+  setHiddenMeshIds: (meshIds) =>
+    set((state) => ({
+      selection: {
+        ...state.selection,
+        hiddenMeshIds: Array.from(
+          new Set((Array.isArray(meshIds) ? meshIds : []).map(String).filter(Boolean))
+        ),
+      },
+    })),
+  isolateMeshIds: (allMeshIds, visibleMeshIds) =>
+    set((state) => {
+      const visible = new Set(
+        (Array.isArray(visibleMeshIds) ? visibleMeshIds : []).map(String)
+      );
+      const hiddenMeshIds = (Array.isArray(allMeshIds) ? allMeshIds : [])
+        .map(String)
+        .filter((id) => id && !visible.has(id));
+      return {
+        selection: {
+          ...state.selection,
+          hiddenMeshIds: Array.from(new Set(hiddenMeshIds)),
+        },
+      };
+    }),
   resetVisibility: () =>
     set((state) => ({
       selection: { ...state.selection, hiddenMeshIds: [] },

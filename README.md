@@ -35,7 +35,7 @@ Then open the dev server URL shown in your terminal (default: http://localhost:5
 
 ## Embedding (Quick Viewer)
 
-The embed mode hides most UI and focuses on the renderer + slice slider.
+The embed mode hides most UI and exposes a versioned, authenticated control API. Commands are Promise-based and can load models, inspect the compact scene manifest, select or isolate instances, control the camera and render modes, and capture PNG images.
 
 Example usage:
 
@@ -49,10 +49,18 @@ Example usage:
     src: "/data/colorcube.3mf",
     transparent: true
   });
+
+  await viewer.ready();
+  const scene = await viewer.getSceneManifest();
+  await viewer.select({ modelResourceId: scene.resources[0].modelResourceId });
+  await viewer.setPresetView("isometric");
+  const { blob } = await viewer.capturePng({ width: 1200, height: 900 });
 </script>
 ```
 
-Embed parameters are handled through query params like `?embed=1&src=...&transparent=1`.
+The helper creates a random session token, pins messages to the iframe window and exact origin, correlates requests and responses, and applies command timeouts. Remote URLs are fetched by the parent page and passed to the viewer as a Blob.
+
+See [docs/viewer-control-api.md](docs/viewer-control-api.md) for commands, targets, events, and the wire protocol. Direct quick-view parameters such as `?embed=1&src=...&transparent=1` remain available for standalone embeds.
 
 ## Project Structure (high level)
 

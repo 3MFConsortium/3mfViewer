@@ -61,6 +61,7 @@ export function ViewerScene({
   const prefs = useViewerStore((state) => state.prefs);
   const sceneObject = useViewerStore((state) => state.viewer.sceneObject);
   const hiddenMeshIds = useViewerStore((state) => state.selection.hiddenMeshIds);
+  const selectedNodeInfo = useViewerStore((state) => state.selection.selectedNodeInfo);
 
   return (
     <>
@@ -109,6 +110,9 @@ export function ViewerScene({
               edgeColor: prefs.edgeColor,
             }}
             hiddenMeshIds={hiddenMeshIds}
+            selectedVisibilityIds={
+              selectedNodeInfo?.visibilityId ? [selectedNodeInfo.visibilityId] : []
+            }
           />
         )}
 

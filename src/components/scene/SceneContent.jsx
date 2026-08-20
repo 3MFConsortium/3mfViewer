@@ -2,12 +2,22 @@ import { useEffect, useMemo } from "react";
 import * as THREE from "three";
 import { disposeThreeObject } from "../../lib/disposeThreeObject.js";
 
-export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds = [] }) {
+export function SceneContent({
+  object,
+  contentRef,
+  renderOptions,
+  hiddenMeshIds = [],
+  selectedVisibilityIds = [],
+}) {
   const wireframe = !!renderOptions?.wireframe;
   const showEdges = !!renderOptions?.edges;
   const edgeColor = renderOptions?.edgeColor || "#111827";
   const subtleEdgeColor = renderOptions?.subtleEdgeColor || "#64748b";
   const hiddenSet = useMemo(() => new Set(hiddenMeshIds), [hiddenMeshIds]);
+  const selectedSet = useMemo(
+    () => new Set(selectedVisibilityIds.map(String)),
+    [selectedVisibilityIds]
+  );
 
   useEffect(() => {
     if (!object) return undefined;
@@ -144,6 +154,30 @@ export function SceneContent({ object, contentRef, renderOptions, hiddenMeshIds 
       }
     });
   }, [object, wireframe, showEdges, edgeColor, subtleEdgeColor, hiddenSet]);
+
+  useEffect(() => {
+    if (!object || selectedSet.size === 0) return undefined;
+    const helpers = [];
+    object.traverse((child) => {
+      if (!child.isMesh && !child.isLineSegments) return;
+      const visibilityId = child.userData?.visibilityId;
+      if (!visibilityId || !selectedSet.has(String(visibilityId))) return;
+      const bounds = new THREE.Box3().setFromObject(child);
+      if (bounds.isEmpty()) return;
+      const helper = new THREE.Box3Helper(bounds, 0xff8a00);
+      helper.name = "ViewerSelectionHighlight";
+      helper.renderOrder = 1000;
+      object.add(helper);
+      helpers.push(helper);
+    });
+    return () => {
+      helpers.forEach((helper) => {
+        object.remove(helper);
+        helper.geometry?.dispose();
+        helper.material?.dispose();
+      });
+    };
+  }, [object, selectedSet]);
 
   useEffect(() => () => disposeThreeObject(object), [object]);
 

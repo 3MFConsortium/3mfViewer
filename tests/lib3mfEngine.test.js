@@ -52,6 +52,15 @@ describe('Lib3mfEngine', () => {
         })
     })
 
+    describe('getResourceIdsSafe', () => {
+        it('keeps lib3mf internal and canonical model resource IDs distinct', () => {
+            expect(engine.getResourceIdsSafe({
+                GetResourceID: () => 7,
+                GetModelResourceID: () => 42,
+            })).toEqual({ resourceId: 7, internalResourceId: 7, modelResourceId: 42 })
+        })
+    })
+
     describe('decodeWarningResult', () => {
         it('should handle string input', () => {
             expect(engine.decodeWarningResult('Simple warning')).toEqual({ message: 'Simple warning', code: undefined })

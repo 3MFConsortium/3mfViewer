@@ -25,8 +25,13 @@ describe('Lib3mfEngine Integration', () => {
         expect(mesh.triangleCount).toBe(12)
         expect(mesh.positions.length).toBe(8 * 3)
         expect(mesh.indices.length).toBe(12 * 3)
+        expect(Number.isFinite(mesh.modelResourceId)).toBe(true)
+        expect(mesh.internalResourceId).toBe(mesh.resourceId)
 
         expect(result.geometry.instances).toHaveLength(3)
+        expect(result.geometry.instances.every((instance) =>
+            instance.modelResourceId === mesh.modelResourceId
+        )).toBe(true)
         expect(new Set(result.geometry.instances.map((instance) => instance.visibilityId)).size).toBe(3)
         expect(new Set(Array.from(result.geometry.instanceIds))).toEqual(new Set([1, 2, 3]))
         expect(result.geometry.instances.map((instance) => instance.bounds.size)).toEqual([

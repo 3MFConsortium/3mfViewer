@@ -124,6 +124,8 @@ const assignIdentity = (object, instance, resourceId) => {
   object.userData.visibilityId = instance?.visibilityId ?? null
   object.userData.instanceKey = instance?.instanceKey ?? null
   object.userData.resourceId = resourceId ?? instance?.resourceId ?? null
+  object.userData.internalResourceId = instance?.internalResourceId ?? resourceId ?? null
+  object.userData.modelResourceId = instance?.modelResourceId ?? resourceId ?? null
   object.userData.bounds = instance?.bounds ?? null
 }
 
@@ -252,6 +254,8 @@ export const createBeamLatticeGroup = (beamData, instances = [], mode = 'solid')
   const group = new THREE.Group()
   group.name = 'Beam lattice'
   group.userData.isBeamLattice = true
+  group.userData.isBeamLatticeRenderRoot = true
+  group.userData.renderMode = mode
   const instanceMap = new Map(instances.map((instance) => [Number(instance.instanceId), instance]))
 
   beamBuckets(beamData).forEach((bucket, instanceId) => {
